@@ -13,7 +13,6 @@ services:
       - ./knowledge_base:/knowledge_base
     environment:
       - KNOWLEDGE_BASE_DIR=/knowledge_base
-    # Production command (no --reload)
     command: gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000 --workers 2 --timeout 120
     restart: unless-stopped
 
@@ -21,12 +20,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    environment:
-      - BACKEND_URL=http://backend:8000
-      - GRADIO_SERVER_NAME=0.0.0.0
-      - GRADIO_SERVER_PORT=7860
     ports:
-      - "80:7860"
+      - "80:80"
     depends_on:
       - backend
     restart: unless-stopped

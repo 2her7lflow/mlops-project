@@ -44,8 +44,6 @@ mlartifacts/
 
 # ------------------------------
 # RAG / Knowledge base artifacts (generated)
-# Keep raw docs in knowledge_base/raw (commit if small),
-# but ignore processed indexes/vectorstores.
 # ------------------------------
 knowledge_base/processed/
 knowledge_base/**/vectorstore/

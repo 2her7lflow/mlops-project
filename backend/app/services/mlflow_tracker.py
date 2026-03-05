@@ -1,4 +1,4 @@
-"""Minimal MLflow utilities used by both evaluation scripts and (optionally) API requests.
+"""Minimal MLflow utilities used by offline experiments and (optionally) API requests.
 
 Design goals (college / medium level):
 - Zero impact if MLflow is not configured.
@@ -26,12 +26,8 @@ def _enabled() -> bool:
 
 
 @contextmanager
-def mlflow_run(run_name: str, tags: Optional[Dict[str, str]] = None, log_system_metrics: Optional[bool] = None):
-    """Context manager that becomes a no-op if MLflow isn't configured.
-
-    System metrics (CPU/RAM/GPU) are optional and must be enabled explicitly.
-    Priority: explicit arg > env var MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING.
-    """
+def mlflow_run(run_name: str, tags: Optional[Dict[str, str]] = None):
+    """Context manager that becomes a no-op if MLflow isn't configured."""
     if not _enabled():
         yield None
         return
@@ -42,24 +38,7 @@ def mlflow_run(run_name: str, tags: Optional[Dict[str, str]] = None, log_system_
     mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
     mlflow.set_experiment(exp_name)
 
-    if log_system_metrics is None:
-        log_system_metrics = os.getenv("MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING", "false").lower() in {"1", "true", "yes"}
-
-    if log_system_metrics:
-        try:
-            # Some MLflow versions require this explicit enable call.
-            import mlflow.system_metrics  # type: ignore
-            mlflow.system_metrics.enable_system_metrics_logging()  # type: ignore
-        except Exception:
-            pass
-
-    try:
-        run_ctx = mlflow.start_run(run_name=run_name, log_system_metrics=bool(log_system_metrics))
-    except TypeError:
-        # Older MLflow versions don't support log_system_metrics.
-        run_ctx = mlflow.start_run(run_name=run_name)
-
-    with run_ctx:
+    with mlflow.start_run(run_name=run_name):
         if tags:
             mlflow.set_tags(tags)
         yield mlflow

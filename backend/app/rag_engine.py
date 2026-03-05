@@ -1,10 +1,10 @@
-"""Thin wrapper so the FastAPI app and evaluation use the SAME RAG implementation.
+"""Thin wrapper so the FastAPI app uses the SAME RAG implementation everywhere.
 
 The canonical implementation lives in backend/rag_engine.py (module name: rag_engine).
 
 Why this file exists:
   - Your app code imports `app.rag_engine.get_rag()`.
-  - Your evaluation imports `rag_engine.PetNutritionRAG`.
+  - Other modules import `rag_engine.PetNutritionRAG`.
   - Keeping a single source-of-truth prevents "it works in eval but not in API" issues.
 """
 

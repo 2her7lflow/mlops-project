@@ -651,11 +651,10 @@ class PetNutritionRAG:
 
         # ready
         self.setup_qa_chain()
-
-        # NOTE (Windows): chromadb's Rust-backed `collection.count()` has been observed to
-        # hard-crash the interpreter ("Windows fatal exception: access violation") in some
-        # environments. Prefer a pure-Python count from our cached JSONL instead.
-        return int(len(splits))
+        try:
+            return int(self.vectorstore._collection.count()) if self.vectorstore is not None else int(len(splits))
+        except Exception:
+            return int(len(splits))
 
     def rebuild_vectorstore(self) -> int:
         if VECTORSTORE_DIR.exists():
@@ -665,46 +664,22 @@ class PetNutritionRAG:
         return self.load_knowledge_base()
 
     def load_existing_vectorstore(self) -> int:
-        # Disable Chroma telemetry to avoid background PostHog threads during evaluation.
-        # (Also helps keep eval runs deterministic/quiet.)
-        try:
-            from chromadb.config import Settings
-            _chroma_settings = Settings(anonymized_telemetry=False)
-        except Exception:
-            _chroma_settings = None
-
         if VECTORSTORE_DIR.exists():
-            self.vectorstore = Chroma(
-                persist_directory=self.persist_directory,
-                embedding_function=self.embeddings,
-                client_settings=_chroma_settings,
-            )
+            self.vectorstore = Chroma(persist_directory=self.persist_directory, embedding_function=self.embeddings)
         else:
             self.vectorstore = None
 
         if PAGE_VECTORSTORE_DIR.exists():
-            self.page_store = Chroma(
-                persist_directory=self.page_persist_directory,
-                embedding_function=self.embeddings,
-                client_settings=_chroma_settings,
-            )
+            self.page_store = Chroma(persist_directory=self.page_persist_directory, embedding_function=self.embeddings)
         else:
             self.page_store = None
 
-        # IMPORTANT: Avoid calling Chroma collection.count() on Windows because it can
-        # crash the process (native access violation). Use cached chunks jsonl instead.
         chunk_count = 0
-        if CHUNKS_PATH.exists():
+        if self.vectorstore is not None:
             try:
-                with open(CHUNKS_PATH, "r", encoding="utf-8") as f:
-                    chunk_count = sum(1 for _ in f)
+                chunk_count = int(self.vectorstore._collection.count())
             except Exception:
                 chunk_count = 0
-
-        # If we have a persisted vectorstore but no JSONL cache, still set up QA chain.
-        # (We can't safely count, but we can attempt retrieval later.)
-        if chunk_count == 0 and self.vectorstore is not None and VECTORSTORE_DIR.exists():
-            chunk_count = 1
 
         if chunk_count > 0:
             self.setup_qa_chain()

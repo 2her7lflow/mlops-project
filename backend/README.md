@@ -65,23 +65,3 @@ Invoke-RestMethod -Method Post http://localhost:8000/admin/setup-rag
 cd backend
 pytest -q
 ```
-
-
-## Repo hygiene (cleaned)
-- Removed generated folders: `__pycache__/`, `*.pyc`, and `mlruns/` (these are created at runtime).
-- Removed committed `.env` (use `.env.example` and create your own `.env`).
-- `models.py` and `nutrition_calculator.py` at repo root are now **thin re-exports** of `app/*` to avoid duplicated logic.
-
-
-
-## Auth
-
-This backend uses a simple session-token auth (header `X-Session-Token`).
-
-Endpoints:
-- `POST /api/auth/signup`
-- `POST /api/auth/login`
-- `POST /api/auth/logout`
-- `GET /api/auth/me`
-
-Most `/api/pets`, `/api/activity`, `/api/nutrition` endpoints require auth.
