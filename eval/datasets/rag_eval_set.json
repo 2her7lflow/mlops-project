@@ -1,0 +1,45 @@
+[
+  {
+    "id": "pf01",
+    "mode": "profile",
+    "question": "Ben อายุเท่าไหร่?",
+    "pet_context": {"name": "Ben", "breed": "Pug", "age_years": 1, "weight_kg": 8},
+    "expected_answer_contains": ["1", "ปี"]
+  },
+  {
+    "id": "pf02",
+    "mode": "profile",
+    "question": "Ben หนักเท่าไหร่",
+    "pet_context": {"name": "Ben", "breed": "Pug", "age_years": 1, "weight_kg": 8},
+    "expected_answer_contains": ["8", "กก"]
+  },
+
+  {
+    "id": "toxic_01",
+    "mode": "consult",
+    "question": "สุนัขกินช็อกโกแลตได้ไหม?",
+    "expected_keywords": ["ช็อกโกแลต", "พิษ", "พบสัตวแพทย์"],
+    "expected_source_contains": ["toxic_foods"]
+  },
+  {
+    "id": "toxic_02",
+    "mode": "consult",
+    "question": "องุ่น/ลูกเกดเป็นพิษกับสุนัขหรือไม่?",
+    "expected_keywords": ["องุ่น", "ลูกเกด", "พิษ"],
+    "expected_source_contains": ["toxic_foods"]
+  },
+  {
+    "id": "guideline_01",
+    "mode": "consult",
+    "question": "การเปลี่ยนอาหารสุนัขควรทำอย่างไรให้ปลอดภัย?",
+    "expected_keywords": ["ค่อย", "เปลี่ยน", "วัน"],
+    "expected_source_contains": ["wsava", "fediaf", "guidelines"]
+  },
+  {
+    "id": "breed_01",
+    "mode": "consult",
+    "question": "สุนัขพันธุ์ปั๊ก (Pug) มักมีความเสี่ยงโรคอะไรบ้าง?",
+    "expected_keywords": ["Pug"],
+    "expected_source_contains": ["dog_breeds", "breed"]
+  }
+]

@@ -1,0 +1,78 @@
+# ------------------------------
+# Secrets / local environment
+# ------------------------------
+.env
+.env.*
+*.env
+
+# ------------------------------
+# Python
+# ------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+*.dist-info/
+.venv/
+venv/
+ENV/
+env/
+
+# test / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.ipynb_checkpoints/
+.coverage
+htmlcov/
+*.log
+
+# ------------------------------
+# MLflow artifacts (generated)
+# ------------------------------
+mlruns/
+mlartifacts/
+
+# ------------------------------
+# Local DB / runtime
+# ------------------------------
+*.db
+*.sqlite3
+
+# ------------------------------
+# RAG / Knowledge base artifacts (generated)
+# Keep raw docs in knowledge_base/raw (commit if small),
+# but ignore processed indexes/vectorstores.
+# ------------------------------
+knowledge_base/processed/
+knowledge_base/**/vectorstore/
+knowledge_base/**/.chroma*/
+knowledge_base/**/chroma*/
+
+# ------------------------------
+# Node / Frontend
+# ------------------------------
+node_modules/
+dist/
+build/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+*.tsbuildinfo
+
+# ------------------------------
+# OS / editors
+# ------------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ------------------------------
+# Docker (local overrides)
+# ------------------------------
+docker-compose.override.yml

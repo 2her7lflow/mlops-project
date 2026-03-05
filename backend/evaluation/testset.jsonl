@@ -1,0 +1,17 @@
+# Prefer testset.json (easier). This file is kept for backward compatibility.
+{"id":"pf01","mode":"profile","question":"Ben อายุเท่าไหร่?","pet_context":{"name":"Ben","breed":"Pug","age_years":1,"weight_kg":8},"expected_answer_contains":["1","ปี"]}
+{"id":"pf02","mode":"profile","question":"Ben หนักเท่าไหร่","pet_context":{"name":"Ben","breed":"Pug","age_years":1,"weight_kg":8},"expected_answer_contains":["8","กก"]}
+{"id":"pf03","mode":"profile","question":"สุนัขของฉันชื่ออะไร?","pet_context":{"name":"Ben"},"expected_answer_contains":["Ben"]}
+{"id":"pf04","mode":"profile","question":"สายพันธุ์ของ Ben คืออะไร","pet_context":{"name":"Ben","breed":"Pug"},"expected_answer_contains":["Pug"]}
+{"id":"tf01","mode":"consult","question":"สุนัขกินช็อกโกแลตได้ไหม? ถ้ากินแล้วควรทำอย่างไร (แนะแนวอาการ/ความเสี่ยง/สิ่งที่ควรทำทันที)","ground_truth":""}
+{"id":"tf02","mode":"consult","question":"องุ่น/ลูกเกดอันตรายกับสุนัขไหม มีอาการอะไร และควรทำอย่างไร","ground_truth":""}
+{"id":"tf03","mode":"consult","question":"ไซลิทอล (xylitol) ในหมากฝรั่ง/ขนม อันตรายกับสุนัขอย่างไร และควรทำอย่างไรถ้ากินเข้าไป","ground_truth":""}
+{"id":"tf04","mode":"consult","question":"หัวหอม/กระเทียมอันตรายกับสุนัขและแมวไหม? สรุปความเสี่ยงและแนวทางเมื่อสงสัยว่ากินเข้าไป","ground_truth":""}
+{"id":"tf05","mode":"consult","question":"กระดูกสุก/กระดูกไก่ที่ผ่านการปรุงสุก อันตรายกับสุนัขอย่างไร และควรหลีกเลี่ยงเพราะอะไร","ground_truth":""}
+{"id":"tf06","mode":"consult","question":"แมวกินดอกลิลลี่ (lily) อันตรายแค่ไหน และควรทำอย่างไรทันที","ground_truth":""}
+{"id":"tr01","mode":"consult","question":"ตามแนวทางโภชนาการ/คำแนะนำเรื่อง treats: ควรให้ขนม (treats) ไม่เกินกี่เปอร์เซ็นต์ของพลังงานต่อวัน?","ground_truth":""}
+{"id":"gd01","mode":"consult","question":"การเปลี่ยนอาหารสุนัขควรทำอย่างไรให้ปลอดภัย?","ground_truth":""}
+{"id":"rm01","mode":"consult","question":"อาหารดิบ (raw meat-based diets) มีความเสี่ยงอะไรบ้างต่อสัตว์เลี้ยงและคนในบ้าน (เช่น เชื้อโรค)","ground_truth":""}
+{"id":"fd01","mode":"consult","question":"FEDIAF/แนวทางโภชนาการ: คำว่า \"complete and balanced\" หมายถึงอะไร (ในบริบทอาหารสัตว์)","ground_truth":""}
+{"id":"fd02","mode":"consult","question":"สรุปหลักการคำนวณ/ประมาณความต้องการพลังงานรายวัน (DER) แบบเข้าใจง่าย และข้อควรระวังในการใช้งาน","ground_truth":""}
+{"id":"br01","mode":"consult","question":"สุนัขพันธุ์ปั๊ก (Pug) มักมีความเสี่ยงโรคประจำสายพันธุ์อะไรบ้าง (อ้างอิงจากข้อมูลในฐานความรู้)","ground_truth":""}
