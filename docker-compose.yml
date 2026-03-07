@@ -25,16 +25,31 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
+    environment:
+      - API_BASE_URL=http://backend:8000
+      - HTTP_TIMEOUT_S=180
     ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - frontend_node_modules:/app/node_modules
+      - "7860:7860"
     depends_on:
       - backend
-    command: npm run dev -- --host 0.0.0.0 --port 3000
     restart: unless-stopped
 
-volumes:
-  frontend_node_modules:
+  # Optional: scheduled rebuild/eval loop (MLOps)
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      - KNOWLEDGE_BASE_DIR=/knowledge_base
+      - REBUILD_EVERY_DAYS=3
+      - ENABLE_DVC_PUSH=false
+    volumes:
+      - ./backend:/app
+      - ./knowledge_base:/knowledge_base
+    depends_on:
+      - backend
+    command: python -m app.scheduler
+    restart: unless-stopped

@@ -416,11 +416,26 @@ class PetNutritionRAG:
         )
 
         # chat model
-        self.llm = ChatGoogleGenerativeAI(
-            model=os.getenv("RAG_LLM_MODEL", "gemini-2.5-flash"),
-            temperature=_env_float("RAG_TEMPERATURE", 0.3),
-            google_api_key=self.api_key,
-        )
+        llm_model = os.getenv("RAG_LLM_MODEL", "gemini-2.5-flash")
+        llm_temp = _env_float("RAG_TEMPERATURE", 0.3)
+        llm_timeout = _env_float("RAG_LLM_TIMEOUT", 60.0)
+        llm_retries = _env_int("RAG_LLM_MAX_RETRIES", 1)
+
+        # chat model (best-effort: some langchain versions may not accept timeout/max_retries)
+        try:
+            self.llm = ChatGoogleGenerativeAI(
+                model=llm_model,
+                temperature=llm_temp,
+                google_api_key=self.api_key,
+                timeout=llm_timeout,
+                max_retries=llm_retries,
+            )
+        except TypeError:
+            self.llm = ChatGoogleGenerativeAI(
+                model=llm_model,
+                temperature=llm_temp,
+                google_api_key=self.api_key,
+            )
 
         # stores
         self.persist_directory = str(VECTORSTORE_DIR)
@@ -954,6 +969,11 @@ class PetNutritionRAG:
 
         run_safety_review = _needs_safety_review(question, best_rel, self.safety_review_rel)
         meta["safety_review_run"] = bool(run_safety_review)
+
+        # Optional: disable safety LLM pass for faster responses
+        if os.getenv("RAG_ENABLE_SAFETY", "true").lower() not in {"1", "true", "yes"}:
+            run_safety_review = False
+            meta["safety_skipped"] = True
 
         if run_safety_review:
             safety_msg = PromptTemplate.from_template(SAFETY_PROMPT_TEMPLATE).format(

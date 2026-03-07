@@ -215,3 +215,17 @@ pytest -q
 - add endpoint tests for auth, pets, activity, and nutrition
 - persist chat/evaluation logs separately for monitoring
 - add wearable-device ingestion once FitBark or similar data is available
+
+
+## Supabase notes (schema updates)
+
+This project uses SQLAlchemy `create_all` for school/demo usage. On Supabase Postgres, **existing tables are not auto-altered**.
+If you already created the `feedback` table before enabling chat thumbs (👍/👎), run:
+
+```sql
+ALTER TABLE feedback
+  ADD COLUMN IF NOT EXISTS question TEXT,
+  ADD COLUMN IF NOT EXISTS answer TEXT,
+  ADD COLUMN IF NOT EXISTS corrected_answer TEXT;
+```
+

@@ -27,7 +27,8 @@ try:
 except Exception:
     pass
 
-DEFAULT_API_BASE = os.getenv("API_BASE_URL", "http://localhost:8000").rstrip("/")
+DEFAULT_API_BASE = (os.getenv("API_BASE_URL") or os.getenv("BACKEND_URL") or "http://localhost:8000").rstrip("/")
+HTTP_TIMEOUT_S = float(os.getenv("HTTP_TIMEOUT_S", "180"))  # read timeout seconds for API calls
 
 COMMON_BREEDS = [
     "Mixed Breed",
@@ -66,7 +67,7 @@ def _req(
             json=json_body,
             params=params,
             headers=headers,
-            timeout=30,
+            timeout=(5, HTTP_TIMEOUT_S),
         )
         if r.status_code >= 400:
             try:
@@ -263,39 +264,61 @@ def adjust_today(api_base: str, token: str, pet_id: int, activity_date: str) -> 
 # Chat
 # -----------------------------
 def chat_send(api_base: str, token: str, pet_id: int, message: str, history: List[Dict[str, Any]]):
-    """Send a chat message.
-
-    Gradio v6 Chatbot expects `history` in **messages** format:
-    [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}, ...]
-    """
-
+    """Send a chat message and keep the latest Q/A for thumbs feedback."""
     message = (message or "").strip()
     if not message:
-        return history, ""
+        return history, "", "", "", pet_id
 
-    # Make pet selection a hard requirement for the advisor.
     if not pet_id:
         history = list(history or [])
-        history.append(
-            {
-                "role": "assistant",
-                "content": "⚠️ Please choose a pet from the dropdown first — or create a pet profile in the ‘🐶 Pet Profiles’ tab.",
-            }
-        )
-        return history, ""
+        history.append({"role": "assistant", "content": "❌ Please select a pet profile first."})
+        return history, "", message, "", pet_id
 
     history = list(history or [])
     history.append({"role": "user", "content": message})
 
-    payload = {"pet_id": int(pet_id) if pet_id else None, "question": message}
+    payload = {"pet_id": int(pet_id), "question": message}
     resp = _req("POST", api_base, "/api/nutrition/chat", token=token, json_body=payload)
     if not resp["ok"]:
-        history.append({"role": "assistant", "content": f"❌ {_pretty_err(resp)}"})
-        return history, ""
+        err = f"❌ {_pretty_err(resp)}"
+        history.append({"role": "assistant", "content": err})
+        return history, "", message, err, pet_id
 
     answer = resp["data"].get("answer", "")
     history.append({"role": "assistant", "content": answer})
-    return history, ""
+    return history, "", message, answer, pet_id
+
+
+# -----------------------------
+# Chat thumbs (👍/👎) for the latest answer
+# -----------------------------
+def send_chat_vote(
+    api_base: str,
+    token: str,
+    pet_id: Optional[int],
+    last_q: str,
+    last_a: str,
+    rating: int,
+    corrected_answer: str = "",
+) -> str:
+    if not last_q or not last_a:
+        return "❌ No recent answer to rate yet."
+
+    payload = {
+        "pet_id": int(pet_id) if pet_id else None,
+        "page": "advisor",
+        "category": "accuracy",
+        "rating": int(rating),
+        "message": "chat_vote",
+        "question": last_q,
+        "answer": last_a,
+        "corrected_answer": (corrected_answer or "").strip() or None,
+    }
+    resp = _req("POST", api_base, "/api/feedback", token=token, json_body=payload)
+    if not resp["ok"]:
+        return f"❌ Vote failed: {_pretty_err(resp)}"
+    return "✅ Saved. Thank you!"
+
 
 # -----------------------------
 # Feedback
@@ -455,6 +478,9 @@ with gr.Blocks(title="Pet Nutrition Planner", theme=theme, css=CSS) as demo:
     token_state = gr.State("")
     email_state = gr.State("")
     pets_state = gr.State([])
+    last_q_state = gr.State("")
+    last_a_state = gr.State("")
+    last_pet_state = gr.State(None)
 
     # -----------------------------
     # 1. AUTHENTICATION VIEW
@@ -532,6 +558,20 @@ with gr.Blocks(title="Pet Nutrition Planner", theme=theme, css=CSS) as demo:
                     with gr.Row():
                         msg = gr.Textbox(show_label=False, placeholder="Type your question here...", scale=5)
                         send = gr.Button("Send", variant="primary", scale=1)
+
+                    # 👍/👎 for the latest answer
+                    with gr.Row():
+                        btn_up = gr.Button("👍 Helpful", size="sm")
+                        btn_down = gr.Button("👎 Not helpful", size="sm")
+                        vote_status = gr.Markdown()
+
+                    corrected_box = gr.Textbox(
+                        label="If not helpful, what would be a better answer? (optional)",
+                        placeholder="Type a corrected answer or extra context...",
+                        visible=False,
+                        lines=3,
+                    )
+                    btn_submit_correction = gr.Button("Submit correction", visible=False)
 
             # --- Tab 2: Pet Profiles ---
             with gr.Tab("🐶 Pet Profiles"):
@@ -770,9 +810,25 @@ with gr.Blocks(title="Pet Nutrition Planner", theme=theme, css=CSS) as demo:
     act_pet.change(list_activity, inputs=[api_base, token_state, act_pet], outputs=[table, status_bar])
 
     # Chat Wiring & History Management
-    send.click(chat_send, inputs=[api_base, token_state, chat_pet, msg, chatbot], outputs=[chatbot, msg])
-    msg.submit(chat_send, inputs=[api_base, token_state, chat_pet, msg, chatbot], outputs=[chatbot, msg])
+    send.click(chat_send, inputs=[api_base, token_state, chat_pet, msg, chatbot], outputs=[chatbot, msg, last_q_state, last_a_state, last_pet_state])
+    msg.submit(chat_send, inputs=[api_base, token_state, chat_pet, msg, chatbot], outputs=[chatbot, msg, last_q_state, last_a_state, last_pet_state])
     
+    btn_up.click(
+        lambda api_base, token, pet_id, q, a: send_chat_vote(api_base, token, pet_id, q, a, 1, ""),
+        inputs=[api_base, token_state, last_pet_state, last_q_state, last_a_state],
+        outputs=[vote_status],
+    )
+    btn_down.click(
+        lambda api_base, token, pet_id, q, a: (gr.update(visible=True), gr.update(visible=True), "👎 Please add a correction (optional) then submit."),
+        inputs=[api_base, token_state, last_pet_state, last_q_state, last_a_state],
+        outputs=[corrected_box, btn_submit_correction, vote_status],
+    )
+    btn_submit_correction.click(
+        lambda api_base, token, pet_id, q, a, corr: (send_chat_vote(api_base, token, pet_id, q, a, -1, corr), gr.update(value="", visible=False), gr.update(visible=False)),
+        inputs=[api_base, token_state, last_pet_state, last_q_state, last_a_state, corrected_box],
+        outputs=[vote_status, corrected_box, btn_submit_correction],
+    )
+
     chat_pet.change(lambda: [], outputs=[chatbot])
     btn_clear_chat.click(lambda: [], outputs=[chatbot])
 

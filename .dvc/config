@@ -1,0 +1,5 @@
+[core]
+    remote = gcsremote
+
+[remote "gcsremote"]
+    url = gs://YOUR_BUCKET/mlops-pet-rag

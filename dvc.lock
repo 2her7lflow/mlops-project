@@ -1,0 +1,99 @@
+schema: '2.0'
+stages:
+  build_vectorstore:
+    cmd: python backend/scripts/build_vectorstore.py
+    deps:
+    - path: backend/rag_engine.py
+      hash: md5
+      md5: 241e784be0b01d8ea04c3cea380d9717
+      size: 45134
+      isexec: true
+    - path: backend/scripts/build_vectorstore.py
+      hash: md5
+      md5: 0abee718e862e340e4f734cb636e1af1
+      size: 1078
+      isexec: true
+    - path: knowledge_base/raw
+      hash: md5
+      md5: c3eb38b5d19584e68f8275d00e8d9f2c.dir
+      size: 14422890
+      nfiles: 10
+    outs:
+    - path: knowledge_base/processed/chunks.jsonl
+      hash: md5
+      md5: e27f6bdd2a747e6191799dd61bed1bfd
+      size: 641340
+    - path: knowledge_base/processed/manifest.json
+      hash: md5
+      md5: c974a7dd5556eefab3de1f56377b04d5
+      size: 108
+    - path: knowledge_base/processed/page_vectorstore
+      hash: md5
+      md5: 3c8c574831afe104eef112272281d911.dir
+      size: 10344612
+      nfiles: 5
+    - path: knowledge_base/processed/pages.jsonl
+      hash: md5
+      md5: 584ec3323f47100b970ec9d6c6fa92b3
+      size: 226474
+    - path: knowledge_base/processed/vectorstore
+      hash: md5
+      md5: 891ad347dac6eeb4ce2a74166e4946c0.dir
+      size: 35040376
+      nfiles: 6
+  eval_rag:
+    cmd: python backend/scripts/eval_rag.py
+    deps:
+    - path: backend/data/eval/questions.jsonl
+      hash: md5
+      md5: b8c73be48a0ac2a41467e85f4a70dbf6
+      size: 386
+      isexec: true
+    - path: backend/rag_engine.py
+      hash: md5
+      md5: 241e784be0b01d8ea04c3cea380d9717
+      size: 45134
+      isexec: true
+    - path: backend/scripts/eval_rag.py
+      hash: md5
+      md5: 9351e15d90b420147e3d1f33126c4402
+      size: 4547
+      isexec: true
+    - path: knowledge_base/processed/page_vectorstore
+      hash: md5
+      md5: 9a891dec753fdf42e45f7d4a8b3ba909.dir
+      size: 10344612
+      nfiles: 5
+    - path: knowledge_base/processed/vectorstore
+      hash: md5
+      md5: 6690c6469baa4afda380e3031d89d30f.dir
+      size: 35040376
+      nfiles: 6
+    outs:
+    - path: knowledge_base/processed/eval_metrics.json
+      hash: md5
+      md5: 0fa9d131f71baca0fd99e5e1a5aa84f7
+      size: 142
+  export_feedback:
+    cmd: python backend/scripts/export_feedback.py
+    deps:
+    - path: backend/app/db.py
+      hash: md5
+      md5: 4eac0b17105518b99f46e5365a6ca1d5
+      size: 1503
+      isexec: true
+    - path: backend/app/models.py
+      hash: md5
+      md5: a8cc8fd313a96b50215293d6c0492681
+      size: 2915
+      isexec: true
+    - path: backend/scripts/export_feedback.py
+      hash: md5
+      md5: 9d0063f69d76a3ae0c13adf93603857a
+      size: 1712
+      isexec: true
+    outs:
+    - path: knowledge_base/feedback/export.jsonl
+      hash: md5
+      md5: 8ceb0a97f067ed64a7a76a96b5506f98
+      size: 2242

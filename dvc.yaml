@@ -1,0 +1,33 @@
+stages:
+  build_vectorstore:
+    cmd: python backend/scripts/build_vectorstore.py
+    deps:
+      - backend/rag_engine.py
+      - backend/scripts/build_vectorstore.py
+      - knowledge_base/raw
+    outs:
+      - knowledge_base/processed/manifest.json
+      - knowledge_base/processed/chunks.jsonl
+      - knowledge_base/processed/pages.jsonl
+      - knowledge_base/processed/vectorstore
+      - knowledge_base/processed/page_vectorstore
+
+  eval_rag:
+    cmd: python backend/scripts/eval_rag.py
+    deps:
+      - backend/rag_engine.py
+      - backend/scripts/eval_rag.py
+      - backend/data/eval/questions.jsonl
+      - knowledge_base/processed/vectorstore
+      - knowledge_base/processed/page_vectorstore
+    metrics:
+      - knowledge_base/processed/eval_metrics.json
+
+  export_feedback:
+    cmd: python backend/scripts/export_feedback.py
+    deps:
+      - backend/app/models.py
+      - backend/app/db.py
+      - backend/scripts/export_feedback.py
+    outs:
+      - knowledge_base/feedback/export.jsonl

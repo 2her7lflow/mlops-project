@@ -20,8 +20,11 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    environment:
+      - API_BASE_URL=http://backend:8000
+      - HTTP_TIMEOUT_S=180
     ports:
-      - "80:80"
+      - "7860:7860"
     depends_on:
       - backend
     restart: unless-stopped

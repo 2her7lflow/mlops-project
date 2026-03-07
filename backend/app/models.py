@@ -83,4 +83,9 @@ class Feedback(Base):
     rating = Column(Integer, nullable=True)
     message = Column(Text, nullable=False)
 
+    # Optional: chat vote fields (for 👍/👎)
+    question = Column(Text, nullable=True)
+    answer = Column(Text, nullable=True)
+    corrected_answer = Column(Text, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

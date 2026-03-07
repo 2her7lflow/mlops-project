@@ -30,22 +30,31 @@ def _ensure_owned_pet(db: Session, pet_id: int, user: User) -> Pet:
 def create_feedback(payload: FeedbackCreate, user: User = Depends(require_user), db: Session = Depends(get_db)):
     page = _normalize_text(payload.page, "general")
     category = _normalize_text(payload.category, "other")
-    message = (payload.message or "").strip()
+
+    question = (payload.question or "").strip()
+    answer = (payload.answer or "").strip()
+    corrected_answer = (payload.corrected_answer or "").strip()
+    message = (payload.message or "").strip() if payload.message else ""
 
     if page not in _VALID_PAGES:
         raise HTTPException(status_code=400, detail=f"Page must be one of: {sorted(_VALID_PAGES)}")
     if category not in _VALID_CATEGORIES:
         raise HTTPException(status_code=400, detail=f"Category must be one of: {sorted(_VALID_CATEGORIES)}")
+
+    is_chat_vote = bool(question or answer) and page == "advisor"
+    if not message and is_chat_vote:
+        message = "chat_vote"
+
     if not message:
         raise HTTPException(status_code=400, detail="Feedback message is required")
-    if len(message) < 5:
-        raise HTTPException(status_code=400, detail="Feedback message must be at least 5 characters")
+    if len(message) < 3:
+        raise HTTPException(status_code=400, detail="Feedback message must be at least 3 characters")
     if len(message) > 2000:
         raise HTTPException(status_code=400, detail="Feedback message must be 2000 characters or fewer")
 
     rating = payload.rating
-    if rating is not None and not (1 <= rating <= 5):
-        raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
+    if rating is not None and rating not in {-1, 1, 2, 3, 4, 5}:
+        raise HTTPException(status_code=400, detail="Rating must be -1/1 for votes or 1..5 for surveys")
 
     pet_id = payload.pet_id
     if pet_id is not None:
@@ -58,6 +67,9 @@ def create_feedback(payload: FeedbackCreate, user: User = Depends(require_user),
         category=category,
         rating=rating,
         message=message,
+        question=question or None,
+        answer=answer or None,
+        corrected_answer=corrected_answer or None,
     )
     db.add(row)
     db.commit()
@@ -71,6 +83,9 @@ def create_feedback(payload: FeedbackCreate, user: User = Depends(require_user),
         category=row.category,
         rating=row.rating,
         message=row.message,
+        question=getattr(row, "question", None),
+        answer=getattr(row, "answer", None),
+        corrected_answer=getattr(row, "corrected_answer", None),
         created_at=row.created_at.isoformat(),
     )
 
@@ -97,6 +112,9 @@ def list_my_feedback(
             category=r.category,
             rating=r.rating,
             message=r.message,
+            question=getattr(r, 'question', None),
+            answer=getattr(r, 'answer', None),
+            corrected_answer=getattr(r, 'corrected_answer', None),
             created_at=r.created_at.isoformat(),
         )
         for r in rows

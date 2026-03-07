@@ -1,4 +1,4 @@
-knowledge_base/processed/
-**/vectorstore/
-**/.chroma*/
-**/chroma*/
+__pycache__/
+*.log
+*.tmp
+.cache/

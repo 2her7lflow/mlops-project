@@ -121,7 +121,15 @@ class FeedbackCreate(BaseModel):
     page: str = "general"
     category: str = "other"
     rating: Optional[int] = None
-    message: str
+
+    # General feedback text (optional if `question`/`answer` are provided)
+    message: Optional[str] = None
+
+    # Optional: chat vote fields (for 👍/👎 after an answer)
+    question: Optional[str] = None
+    answer: Optional[str] = None
+    corrected_answer: Optional[str] = None
+
 
 
 class FeedbackResponse(BaseModel):
