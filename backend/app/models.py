@@ -1,5 +1,5 @@
 # models.py
-from datetime import datetime, date
+from datetime import datetime
 
 from sqlalchemy import (
     Column,
@@ -53,21 +53,6 @@ class ActivityLog(Base):
     calories_burned = Column(Float, default=0.0, nullable=False)
 
 
-class NutritionPlan(Base):
-    __tablename__ = "nutrition_plans"
-
-    id = Column(Integer, primary_key=True, index=True)
-    pet_id = Column(Integer, ForeignKey("pets.id", ondelete="CASCADE"), index=True, nullable=False)
-
-    # Store as DATE to align with daily planning
-    plan_date = Column(Date, index=True, default=date.today, nullable=False)
-
-    daily_calories = Column(Float, nullable=False)
-    meal_frequency = Column(Integer, nullable=False)
-    portion_size_grams = Column(Float, nullable=False)
-    food_type = Column(String, nullable=False)  # kibble, wet, raw
-    notes = Column(Text, nullable=True)
-
 class User(Base):
     __tablename__ = "users"
 
@@ -84,3 +69,18 @@ class AuthSession(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     expires_at = Column(DateTime, nullable=False)
+
+
+class Feedback(Base):
+    __tablename__ = "feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_email = Column(String, index=True, nullable=False)
+    pet_id = Column(Integer, ForeignKey("pets.id", ondelete="SET NULL"), index=True, nullable=True)
+
+    page = Column(String, nullable=False, default="general")
+    category = Column(String, nullable=False, default="general")
+    rating = Column(Integer, nullable=True)
+    message = Column(Text, nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

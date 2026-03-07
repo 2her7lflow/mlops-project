@@ -16,5 +16,6 @@ Think of `backend/app/` as “the FastAPI application code”:
 ## Folder map
 - `routers/` — HTTP endpoints (what the frontend calls)
 - `services/` — “business logic” that routers use
+- `routers/feedback.py` — stores user feedback from the frontend
 
 If you are new: start by reading `routers/nutrition.py` (the chat endpoint) and `services/rag_service.py`.

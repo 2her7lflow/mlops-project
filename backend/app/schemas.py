@@ -114,3 +114,24 @@ class ActivityResponse(BaseModel):
     calories_burned: float
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class FeedbackCreate(BaseModel):
+    pet_id: Optional[int] = None
+    page: str = "general"
+    category: str = "other"
+    rating: Optional[int] = None
+    message: str
+
+
+class FeedbackResponse(BaseModel):
+    id: int
+    user_email: EmailStr
+    pet_id: Optional[int] = None
+    page: str
+    category: str
+    rating: Optional[int] = None
+    message: str
+    created_at: str
+
+    model_config = ConfigDict(from_attributes=True)

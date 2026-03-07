@@ -31,43 +31,7 @@ os.environ["ANONYMIZED_TELEMETRY"] = "false"
 # Prompt Templates (Advanced Prompt Engineering)
 # -----------------------------
 
-# 1) Triage Prompt (Prompt Chaining)
-TRIAGE_PROMPT_TEMPLATE = """You are a strict triage classifier for a veterinary assistant.
-
-User input (may be Thai/English): "{question}"
-
-Classify into ONE of these exact categories:
-- EMERGENCY
-- PROFILE_FACT
-- CONSULT
-
-Definitions (choose the safest option when uncertain):
-
-1) EMERGENCY:
-   Any life-threatening symptom OR high-risk ingestion/exposure OR major trauma.
-   Examples (not exhaustive):
-   - Breathing difficulty: หายใจลำบาก/หอบหนัก/ตัวเขียว/สำลัก
-   - Neurologic: ชัก/หมดสติ/ซึมมาก/เดินเซเฉียบพลัน
-   - Severe GI/abdomen: อาเจียนไม่หยุด, ถ่ายเป็นเลือด, ท้องบวมแข็ง/สงสัยบิดกระเพาะ
-   - Bleeding/trauma: เลือดออกมาก, โดนรถชน, ตกจากที่สูง, แผลลึก
-   - Heatstroke: ลิ้นม่วง, ตัวร้อนจัด, หอบมากหลังอยู่กลางแดด
-   - Toxins/poisons/exposures: กินช็อกโกแลต, องุ่น/ลูกเกด, หอม/กระเทียมปริมาณมาก,
-     ไซลิทอล, แอลกอฮอล์, ยาฆ่าแมลง/เหยื่อหนู, ยาคนทุกชนิด (พาราเซตามอล/ไอบูโพรเฟน ฯลฯ),
-     ยานอนหลับ, สารทำความสะอาด, ยาเสพติด, พืชพิษ (เช่น ลิลลี่ในแมว), ของมีคม, กระดูกติดคอ
-   If any EMERGENCY cue appears, output EMERGENCY even if the question also asks for advice.
-
-2) PROFILE_FACT:
-   ONLY if the user is explicitly asking for stored pet profile facts:
-   name / age / breed / weight / sex / profile status.
-   Examples: "how old is my dog", "น้องชื่ออะไร", "พันธุ์อะไร", "หนักกี่กิโล", "เพศอะไร"
-   If the question contains advice-seeking beyond a simple fact (diet/health/behavior), do NOT choose PROFILE_FACT.
-
-3) CONSULT:
-   All other health, food, nutrition, diet, behavior, preventive care, general questions that are not EMERGENCY and not pure PROFILE_FACT.
-
-Return ONLY the category name (EMERGENCY, PROFILE_FACT, or CONSULT). No extra text."""
-
-# 2) Main RAG Prompt (V3)
+# 1) Main RAG Prompt (V3)
 RAG_PROMPT_TEMPLATE_V3 = """คุณคือผู้ช่วย AI สัตวแพทย์ที่เชี่ยวชาญและเป็นมิตร
 คุณมีแหล่งข้อมูลอ้างอิง 2 แหล่ง เพื่อใช้ประกอบการตอบคำถาม:
 
@@ -94,7 +58,7 @@ RAG_PROMPT_TEMPLATE_V3 = """คุณคือผู้ช่วย AI สัต
 ตอบเป็นภาษาไทยเสมอ ด้วยน้ำเสียงที่เข้าอกเข้าใจและเป็นมืออาชีพ
 """
 
-# 3) Safety Check Prompt (Self-Feedback / Self-Critique)
+# 2) Safety Check Prompt (Self-Feedback / Self-Critique)
 SAFETY_PROMPT_TEMPLATE = """You are a strict veterinary safety reviewer and corrector.
 Your job: check the draft answer for safety AND compliance with RAG-v3 rules (no hallucination, KB-grounded).
 
@@ -335,6 +299,70 @@ def _env_float(name: str, default: float) -> float:
 def _normalize_text(s: str) -> str:
     return " ".join((s or "").split())
 
+def _contains_any(text: str, terms: list[str]) -> bool:
+    q = (text or "").lower()
+    return any(term in q for term in terms)
+
+_EMERGENCY_TERMS = [
+    "หายใจ", "หอบ", "ตัวเขียว", "สำลัก", "ชัก", "หมดสติ", "ซึมมาก", "เดินเซ",
+    "เลือด", "เลือดออก", "โดนรถชน", "ตกจากที่สูง", "แผลลึก", "ท้องบวม", "บิดกระเพาะ",
+    "อาเจียนไม่หยุด", "poison", "toxin", "toxicity", "xylitol", "chocolate", "grapes",
+    "raisins", "ibuprofen", "paracetamol", "acetaminophen", "rat bait", "pesticide",
+    "seizure", "unconscious", "collapse", "bleeding", "bloat", "lily", "ลิลลี่",
+]
+
+_PROFILE_FACT_TERMS = [
+    "ชื่อ", "name", "อายุ", "age", "how old", "สายพันธุ์", "พันธุ์", "breed",
+    "น้ำหนัก", "weight", "หนักกี่", "เพศ", "sex", "gender", "profile", "ประวัติ",
+]
+
+_CONSULT_HINT_TERMS = [
+    "กิน", "eat", "food", "อาหาร", "diet", "meal", "nutrition", "nutritional",
+    "calorie", "treat", "safe", "okay", "ดีไหม", "ได้ไหม", "ควร", "อาการ", "symptom",
+    "vomit", "diarrhea", "medicine", "ยา", "โรค", "health", "behavior", "care",
+]
+
+_RISKY_REVIEW_TERMS = [
+    "ยา", "medicine", "medication", "dose", "dosage", "drug", "poison", "toxin",
+    "ชัก", "seizure", "หมดสติ", "unconscious", "collapse", "หายใจ", "breathing",
+    "เลือด", "bleeding", "อาเจียน", "vomit", "vomiting", "ท้องเสีย", "diarrhea",
+    "แพ้", "allergy", "allergic", "xylitol", "chocolate", "grapes", "raisins",
+    "ibuprofen", "paracetamol", "acetaminophen", "toxic", "toxicity",
+]
+
+_SIMPLE_FOOD_TERMS = [
+    "กิน", "กินได้ไหม", "ทานได้ไหม", "eat", "can my dog eat", "can my cat eat",
+    "safe", "okay", "food", "treat", "fruit", "vegetable", "snack", "อาหาร",
+]
+
+def _classify_question_fast(question: str) -> str:
+    q = (question or "").strip().lower()
+    if not q:
+        return "CONSULT"
+    if _contains_any(q, _EMERGENCY_TERMS):
+        return "EMERGENCY"
+    asks_profile = _contains_any(q, _PROFILE_FACT_TERMS)
+    seeks_advice = _contains_any(q, _CONSULT_HINT_TERMS)
+    if asks_profile and not seeks_advice:
+        return "PROFILE_FACT"
+    return "CONSULT"
+
+def _is_simple_food_question(question: str) -> bool:
+    q = (question or "").strip().lower()
+    if not q:
+        return False
+    return _contains_any(q, _SIMPLE_FOOD_TERMS) and not _contains_any(q, _RISKY_REVIEW_TERMS)
+
+def _needs_safety_review(question: str, best_rel: float, safety_review_rel: float) -> bool:
+    q = (question or "").strip().lower()
+    if float(best_rel) < float(safety_review_rel):
+        return True
+    if _contains_any(q, _RISKY_REVIEW_TERMS):
+        return True
+    if _is_simple_food_question(q):
+        return False
+    return False
+
 def _rrf_fuse(rankings: list[list[Document]], k: int, rrf_k: int = 60) -> list[Document]:
     scores: dict[str, float] = {}
     by_key: dict[str, Document] = {}
@@ -404,15 +432,17 @@ class PetNutritionRAG:
         self.prompt = None
 
         # retrieval knobs
-        self.k_vector = _env_int("RAG_K_VECTOR", 4)
-        self.k_bm25 = _env_int("RAG_K_BM25", 6)
-        self.k_pages = _env_int("RAG_K_PAGES", 4)
-        self.k_per_page = _env_int("RAG_K_PER_PAGE", 2)
-        self.k_final = _env_int("RAG_K_FINAL", 5)
-        self.page_text_max_chars = _env_int("RAG_PAGE_TEXT_MAX_CHARS", 2000)
+        self.k_vector = _env_int("RAG_K_VECTOR", 3)
+        self.k_bm25 = _env_int("RAG_K_BM25", 4)
+        self.k_pages = _env_int("RAG_K_PAGES", 2)
+        self.k_per_page = _env_int("RAG_K_PER_PAGE", 1)
+        self.k_final = _env_int("RAG_K_FINAL", 4)
+        self.page_text_max_chars = _env_int("RAG_PAGE_TEXT_MAX_CHARS", 1500)
 
         # guardrail
         self.min_relevance = _env_float("RAG_MIN_RELEVANCE", 0.35)
+        self.fast_vector_only_rel = _env_float("RAG_FAST_VECTOR_ONLY_REL", 0.72)
+        self.safety_review_rel = _env_float("RAG_SAFETY_REVIEW_REL", 0.60)
 
         # internal retrievers
         self._bm25_chunks = None
@@ -774,6 +804,18 @@ class PetNutritionRAG:
 
     def _retrieve_one(self, query: str) -> tuple[list[Document], float, dict]:
         vec_docs, best_rel = self._retrieve_vector(query)
+
+        if vec_docs and float(best_rel) >= float(self.fast_vector_only_rel):
+            fast_docs = vec_docs[: self.k_final]
+            meta = {
+                "best_relevance": float(best_rel),
+                "page_index_hit": 0.0,
+                "num_contexts": float(len(fast_docs)),
+                "unique_sources": float(len({d.metadata.get("source") for d in fast_docs if d.metadata})),
+                "retrieval_strategy": "vector-only-fastpath",
+            }
+            return fast_docs, best_rel, meta
+
         kw_docs = self._retrieve_bm25_chunks(query)
 
         page_docs = self._retrieve_pages(query)
@@ -817,22 +859,33 @@ class PetNutritionRAG:
     def ask(self, question: str, pet_context: dict | None = None) -> dict:
         t0 = time.perf_counter()
 
-        # Phase 1: triage
-        triage_msg = PromptTemplate.from_template(TRIAGE_PROMPT_TEMPLATE).format(question=question)
-        triage_res = (self.llm.invoke(triage_msg).content or "").strip().upper()
+        # Phase 1: fast triage (rule-based, no LLM round-trip)
+        t_triage0 = time.perf_counter()
+        triage_res = _classify_question_fast(question)
+        triage_ms = (time.perf_counter() - t_triage0) * 1000.0
 
-        if "EMERGENCY" in triage_res:
+        if triage_res == "EMERGENCY":
             return {
                 "answer": "⚠️ คำถามนี้มีแนวโน้มเป็นภาวะฉุกเฉิน/อันตรายต่อชีวิตสัตว์เลี้ยง กรุณารีบพาน้องไปพบสัตวแพทย์ หรือโทรหาโรงพยาบาลสัตว์ใกล้บ้านทันทีค่ะ/ครับ",
                 "sources": [],
-                "_meta": {"mode": "emergency", "total_ms": float((time.perf_counter() - t0) * 1000.0)},
+                "_meta": {
+                    "mode": "emergency",
+                    "triage_method": "rule_based",
+                    "triage_ms": float(triage_ms),
+                    "total_ms": float((time.perf_counter() - t0) * 1000.0),
+                },
             }
 
-        if "PROFILE_FACT" in triage_res:
+        if triage_res == "PROFILE_FACT":
             return {
                 "answer": _answer_from_pet_profile(question, pet_context),
                 "sources": [],
-                "_meta": {"mode": "pet_profile", "total_ms": float((time.perf_counter() - t0) * 1000.0)},
+                "_meta": {
+                    "mode": "pet_profile",
+                    "triage_method": "rule_based",
+                    "triage_ms": float(triage_ms),
+                    "total_ms": float((time.perf_counter() - t0) * 1000.0),
+                },
             }
 
         # Phase 2: consult (RAG)
@@ -842,7 +895,14 @@ class PetNutritionRAG:
                 return {
                     "answer": "จากฐานข้อมูลที่มีอยู่ ไม่พบข้อมูลที่เฉพาะเจาะจงสำหรับคำถามนี้\n\nแนะนำให้ปรึกษาสัตวแพทย์ค่ะ/ครับ",
                     "sources": [],
-                    "_meta": {"mode": "consult", "guardrail_not_indexed": 1.0, "note": "kb_not_indexed"},
+                    "_meta": {
+                        "mode": "consult",
+                        "triage_method": "rule_based",
+                        "triage_ms": float(triage_ms),
+                        "guardrail_not_indexed": 1.0,
+                        "note": "kb_not_indexed",
+                        "total_ms": float((time.perf_counter() - t0) * 1000.0),
+                    },
                 }
 
         # Retrieval query (only include hints if present)
@@ -867,6 +927,8 @@ class PetNutritionRAG:
 
         meta = meta or {}
         meta["mode"] = "consult"
+        meta["triage_method"] = "rule_based"
+        meta["triage_ms"] = float(triage_ms)
         meta["retrieval_ms"] = float(retrieval_ms)
 
         if (not docs) or (float(best_rel) < float(self.min_relevance)):
@@ -890,24 +952,31 @@ class PetNutritionRAG:
         draft_answer = getattr(draft_out, "content", None) or str(draft_out)
         meta["draft_llm_ms"] = float((time.perf_counter() - t_llm0) * 1000.0)
 
-        # Phase 3: safety (FIX: pass pet_context + context)
-        safety_msg = PromptTemplate.from_template(SAFETY_PROMPT_TEMPLATE).format(
-            question=question,
-            pet_context=pet_info_str,
-            context=context,
-            draft_answer=draft_answer,
-        )
-        t_safety0 = time.perf_counter()
-        safety_out = self.llm.invoke(safety_msg)
-        safety_res = (getattr(safety_out, "content", None) or str(safety_out)).strip()
-        meta["safety_llm_ms"] = float((time.perf_counter() - t_safety0) * 1000.0)
+        run_safety_review = _needs_safety_review(question, best_rel, self.safety_review_rel)
+        meta["safety_review_run"] = bool(run_safety_review)
 
-        if safety_res == "SAFE" or safety_res.startswith("SAFE"):
-            final_answer = draft_answer
-            meta["safety_rewritten"] = False
+        if run_safety_review:
+            safety_msg = PromptTemplate.from_template(SAFETY_PROMPT_TEMPLATE).format(
+                question=question,
+                pet_context=pet_info_str,
+                context=context,
+                draft_answer=draft_answer,
+            )
+            t_safety0 = time.perf_counter()
+            safety_out = self.llm.invoke(safety_msg)
+            safety_res = (getattr(safety_out, "content", None) or str(safety_out)).strip()
+            meta["safety_llm_ms"] = float((time.perf_counter() - t_safety0) * 1000.0)
+
+            if safety_res == "SAFE" or safety_res.startswith("SAFE"):
+                final_answer = draft_answer
+                meta["safety_rewritten"] = False
+            else:
+                final_answer = safety_res
+                meta["safety_rewritten"] = True
         else:
-            final_answer = safety_res
-            meta["safety_rewritten"] = True
+            final_answer = draft_answer
+            meta["safety_llm_ms"] = 0.0
+            meta["safety_rewritten"] = False
 
         meta["total_ms"] = float((time.perf_counter() - t0) * 1000.0)
 

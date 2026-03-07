@@ -1,67 +1,217 @@
-# backend/ — FastAPI API (DB + Nutrition + RAG)
+# backend/ — Pet Nutrition AI Backend
 
-This folder is the **server**. It exposes HTTP endpoints (FastAPI) for:
-- pets (CRUD-ish)
-- nutrition chat (RAG answers + nutrition calculator)
-- admin actions (build the RAG index)
+FastAPI backend for a DSBA pet-care project: a **personalized diet planner** that adapts feeding advice based on a pet profile, activity logs, and a RAG-based nutrition assistant.
 
-## Key entrypoints
-- `main.py` — tiny entrypoint that imports `app.main:app` (so `uvicorn main:app` works)
-- `app/main.py` — real FastAPI app + router wiring
-- `rag_engine.py` — the real RAG implementation (PageIndex-inspired page/row-first + hybrid + guardrails)
-- `app/rag_engine.py` — thin wrapper so `app.*` imports use the same engine
-- `app/services/` — business logic (RAG service, nutrition service, MLflow logging)
+## What this backend does
 
-## Environment variables (most important)
-These can be in your shell env or in `backend/.env`:
+- user signup, login, logout, and session-based authentication
+- pet profile CRUD
+- daily calorie calculation from pet profile
+- activity logging and activity-adjusted feeding plan
+- nutrition Q&A through a RAG pipeline grounded in your knowledge base
+- simple health, metrics, and DB diagnostics endpoints
+- user feedback collection for bugs, ideas, UX issues, and model quality notes
 
-- `DATABASE_URL` — Postgres/Supabase connection string (required)
-- `GOOGLE_API_KEY` — Gemini API key (required for LLM answers / RAGAS)
-- `KNOWLEDGE_BASE_DIR` — optional override for KB location
+## Current architecture
 
-RAG knobs:
-- `PROMPT_VERSION` = v1 or v2 (v2 is stricter guardrails)
-- `RAG_K_VECTOR`, `RAG_K_BM25`, `RAG_K_PAGES`, `RAG_K_PER_PAGE`, `RAG_K_FINAL`
-- `RAG_MIN_RELEVANCE` (guardrail threshold)
-- `RAG_PAGE_TEXT_MAX_CHARS` (truncate page/row text before indexing)
+```
+Frontend (Gradio)
+    -> FastAPI backend
+        -> SQLAlchemy
+            -> SQLite (local dev) or Supabase Postgres
+        -> RAG service / Gemini or configured LLM provider
+        -> knowledge_base/* documents
+```
 
-MLflow:
-- `MLFLOW_TRACKING_URI`
-- `MLFLOW_EXPERIMENT_NAME`
+## Project structure
+
+```
+backend/
+├── main.py                # backward-compatible entrypoint for `uvicorn main:app`
+├── app/
+│   ├── main.py            # real FastAPI app
+│   ├── db.py              # DB engine/session/init
+│   ├── models.py          # SQLAlchemy models
+│   ├── schemas.py         # Pydantic request/response models
+│   ├── auth.py            # password hashing + session auth helpers
+│   ├── nutrition_calculator.py
+│   ├── rag_engine.py
+│   ├── routers/
+│   │   ├── auth.py
+│   │   ├── pets.py
+│   │   ├── activity.py
+│   │   ├── nutrition.py
+│   │   ├── admin.py
+│   │   └── system.py
+│   └── services/
+├── tests/
+├── requirements.txt
+└── Dockerfile
+```
+
+## Database tables
+
+This version keeps only the tables that are currently used by the API:
+
+- `users`
+- `auth_sessions`
+- `pets`
+- `activity_logs`
+- `feedback`
+
+`nutrition_plans` was removed because the app calculates meal plans on demand from the pet profile and latest activity instead of reading a persisted plan table.
+
+## Main API routes
+
+### System
+- `GET /`
+- `GET /health`
+- `GET /metrics`
+- `GET /db`
+
+### Auth
+- `POST /api/auth/signup`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+
+### Pets
+- `POST /api/pets`
+- `GET /api/pets`
+- `GET /api/pets/{pet_id}`
+- `PUT /api/pets/{pet_id}`
+- `DELETE /api/pets/{pet_id}`
+
+Legacy compatibility:
+- `POST /api/pets/register`
+- `GET /api/pets/user/{email}`
+
+### Activity
+- `POST /api/activity/logs`
+- `GET /api/activity/logs?pet_id=...&limit=...`
+- `GET /api/activity/adjust/{pet_id}?activity_date=YYYY-MM-DD`
+
+Legacy compatibility:
+- `POST /api/activity/sync`
+
+### Nutrition
+- `POST /api/nutrition/chat`
+- `GET /api/nutrition/calculate/{pet_id}`
+
+### Feedback
+- `POST /api/feedback`
+- `GET /api/feedback?limit=20`
+
+### Admin
+- `POST /admin/setup-rag`
+
+## Auth model
+
+Protected routes use the header below:
+
+```
+X-Session-Token: <token>
+```
+
+The Gradio frontend already sends this header after login.
+
+## Environment variables
+
+Create `backend/.env` from `.env.example`. The most important values are:
+
+```env
+DATABASE_URL=sqlite:///./dev.db
+CREATE_TABLES=true
+GOOGLE_API_KEY=your_key_here
+KNOWLEDGE_BASE_DIR=../knowledge_base
+DISABLE_RAG=false
+
+# optional RAG tuning
+PROMPT_VERSION=v2
+RAG_K_VECTOR=8
+RAG_K_BM25=8
+RAG_K_PAGES=6
+RAG_K_PER_PAGE=3
+RAG_K_FINAL=6
+RAG_MIN_RELEVANCE=0.15
+
+# optional MLflow
+ENABLE_MLFLOW_CHAT_LOGGING=false
+MLFLOW_TRACKING_URI=file:./mlruns
+MLFLOW_EXPERIMENT_NAME=pet-nutrition-api
+```
+
+Notes:
+- local development can use SQLite
+- deployment can use Supabase Postgres via `DATABASE_URL`
+- set `DISABLE_RAG=true` if you want to test API and frontend flow without the LLM stack
 
 ## Run locally
+
+### PowerShell
 ```powershell
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 copy .env.example .env
-# edit backend/.env
+uvicorn main:app --reload --reload-include .\.env --port 8000
+```
+
+### Bash
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
 uvicorn main:app --reload --port 8000
 ```
 
-Then open:
-- `http://localhost:8000/docs`
+Open Swagger UI at:
 
-## Run (Docker)
-### Dockerfile
+```
+http://localhost:8000/docs
+```
+
+## Docker
+
 ```bash
 docker build -t pet-backend:latest .
 docker run --rm -p 8000:8000 --env-file .env pet-backend:latest
 ```
 
-### docker-compose
+Or:
+
 ```bash
 docker compose up --build
 ```
 
-## Build the KB index
+## Build or rebuild the RAG index
+
 ```powershell
 Invoke-RestMethod -Method Post http://localhost:8000/admin/setup-rag
 ```
 
+## Minimal manual test flow
+
+1. Sign up
+2. Create a pet profile
+3. Log activity for that pet
+4. Generate an adjusted daily plan
+5. Ask a nutrition question in `/api/nutrition/chat`
+6. Submit UX or answer-quality feedback in `/api/feedback`
+
 ## Run tests
+
 ```powershell
 cd backend
 pytest -q
 ```
+
+## Suggested next improvements
+
+- add Alembic migrations instead of relying on `create_all()`
+- add endpoint tests for auth, pets, activity, and nutrition
+- persist chat/evaluation logs separately for monitoring
+- add wearable-device ingestion once FitBark or similar data is available

@@ -111,6 +111,31 @@ class NutritionCalculator:
             "cups_per_day": round(grams_per_day / 120.0, 2),  # ~120g per cup assumption
         }
 
+
+    @staticmethod
+    def get_recommendations(species: str, age_years: Optional[float] = None, health_conditions: Optional[str] = None) -> str:
+        """Return lightweight nutrition guidance text for calculator responses."""
+        species = (species or "pet").lower()
+        notes = []
+
+        if species == "cat":
+            notes.append("Cats do best on a high-protein diet and should always have access to fresh water.")
+        elif species == "dog":
+            notes.append("Dogs usually do well when their daily ration is split into consistent meals and body weight is checked regularly.")
+        else:
+            notes.append("Use the portion as a starting estimate and monitor body weight and body condition score.")
+
+        if age_years is not None:
+            if age_years < 1.0:
+                notes.append("Young pets typically need more frequent meals and growth-appropriate food.")
+            elif age_years > 7.0:
+                notes.append("Senior pets may need lower calories and closer monitoring of muscle condition.")
+
+        if health_conditions:
+            notes.append("Because there are existing health conditions, confirm the final feeding plan with a veterinarian.")
+
+        return " ".join(notes)
+
     @staticmethod
     def adjust_for_activity(base_calories: float, steps: int, active_minutes: int) -> float:
         """

@@ -194,16 +194,46 @@ def delete_pet(api_base: str, token: str, pet_id: int) -> str:
 # Activity
 # -----------------------------
 def add_activity(
-    api_base: str, token: str, pet_id: int, activity_date: str, steps: int, active_minutes: int,
+    api_base: str,
+    token: str,
+    pet_id: int,
+    activity_date: str,
+    activity_type: str,
+    duration_minutes: int,
+    intensity: int,
 ) -> str:
-    if not pet_id: return "❌ Please select a pet."
+    if not pet_id:
+        return "❌ Please select a pet."
+
+    # Convert human-friendly activity -> (steps, active_minutes)
+    at = (activity_type or "").strip().lower()
+    dur = max(0, int(duration_minutes or 0))
+    inten = max(1, min(5, int(intensity or 3)))
+
+    steps_per_min = {
+        "none": 0,
+        "walk_slow": 80,
+        "walk_normal": 100,
+        "walk_fast": 120,
+        "play_fetch": 110,
+        "training": 60,
+        "run": 140,
+    }.get(at, 100)
+
+    intensity_mult = {1: 0.7, 2: 0.85, 3: 1.0, 4: 1.15, 5: 1.3}[inten]
+    steps = int(round(steps_per_min * dur * intensity_mult))
+    active_minutes = 0 if at == "none" else dur
+
     payload = {
-        "pet_id": int(pet_id), "date": activity_date.strip(),
-        "steps": int(steps or 0), "active_minutes": int(active_minutes or 0),
+        "pet_id": int(pet_id),
+        "date": activity_date.strip(),
+        "steps": int(steps),
+        "active_minutes": int(active_minutes),
     }
     resp = _req("POST", api_base, "/api/activity/logs", token=token, json_body=payload)
-    if not resp["ok"]: return f"❌ Save failed: {_pretty_err(resp)}"
-    return "✅ Activity logged successfully."
+    if not resp["ok"]:
+        return f"❌ Save failed: {_pretty_err(resp)}"
+    return f"✅ Activity saved (estimated {steps} steps, {active_minutes} active min)."
 
 def list_activity(api_base: str, token: str, pet_id: int) -> Tuple[List[List[Any]], str]:
     if not pet_id: return [], ""
@@ -232,19 +262,90 @@ def adjust_today(api_base: str, token: str, pet_id: int, activity_date: str) -> 
 # -----------------------------
 # Chat
 # -----------------------------
-def chat_send(api_base: str, token: str, pet_id: int, message: str, history: List[Tuple[str, str]]):
+def chat_send(api_base: str, token: str, pet_id: int, message: str, history: List[Dict[str, Any]]):
+    """Send a chat message.
+
+    Gradio v6 Chatbot expects `history` in **messages** format:
+    [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}, ...]
+    """
+
     message = (message or "").strip()
-    if not message: return history, ""
+    if not message:
+        return history, ""
+
+    # Make pet selection a hard requirement for the advisor.
+    if not pet_id:
+        history = list(history or [])
+        history.append(
+            {
+                "role": "assistant",
+                "content": "⚠️ Please choose a pet from the dropdown first — or create a pet profile in the ‘🐶 Pet Profiles’ tab.",
+            }
+        )
+        return history, ""
+
+    history = list(history or [])
+    history.append({"role": "user", "content": message})
 
     payload = {"pet_id": int(pet_id) if pet_id else None, "question": message}
     resp = _req("POST", api_base, "/api/nutrition/chat", token=token, json_body=payload)
     if not resp["ok"]:
-        history = history + [(message, f"❌ {_pretty_err(resp)}")]
+        history.append({"role": "assistant", "content": f"❌ {_pretty_err(resp)}"})
         return history, ""
 
     answer = resp["data"].get("answer", "")
-    history = history + [(message, answer)]
+    history.append({"role": "assistant", "content": answer})
     return history, ""
+
+# -----------------------------
+# Feedback
+# -----------------------------
+def submit_feedback(
+    api_base: str,
+    token: str,
+    pet_id: Optional[int],
+    page: str,
+    category: str,
+    rating: Optional[int],
+    message: str,
+) -> Tuple[str, str]:
+    message = (message or "").strip()
+    if not message:
+        return "❌ Please enter feedback before submitting.", ""
+
+    payload = {
+        "pet_id": int(pet_id) if pet_id else None,
+        "page": (page or "general").strip().lower(),
+        "category": (category or "other").strip().lower(),
+        "rating": int(rating) if rating else None,
+        "message": message,
+    }
+    resp = _req("POST", api_base, "/api/feedback", token=token, json_body=payload)
+    if not resp["ok"]:
+        return f"❌ Feedback submit failed: {_pretty_err(resp)}", message
+
+    return "✅ Thanks. Your feedback has been saved.", ""
+
+
+def list_feedback(api_base: str, token: str) -> Tuple[List[List[Any]], str]:
+    resp = _req("GET", api_base, "/api/feedback", token=token, params={"limit": 20})
+    if not resp["ok"]:
+        return [], f"<div class='status-bar'>❌ Failed to load feedback history: {_pretty_err(resp)}</div>"
+
+    rows = resp["data"] or []
+    table = [
+        [
+            (r.get("created_at") or "")[:19].replace("T", " "),
+            r.get("page") or "general",
+            r.get("category") or "other",
+            r.get("rating"),
+            r.get("pet_id") or "-",
+            r.get("message") or "",
+        ]
+        for r in rows
+    ]
+    return table, "<div class='status-bar'>✅ Feedback history refreshed.</div>"
+
 
 # -----------------------------
 # UI Layout & Wiring
@@ -300,6 +401,20 @@ body {
     padding: 24px;
 }
 
+/* ── Chat pet context selector ── */
+.pet-context-card {
+    background: #fff7ed; /* warm highlight */
+    border: 1px solid #fed7aa;
+    border-radius: 16px;
+    padding: 16px;
+    margin: 12px 0 16px 0;
+}
+.pet-context-note {
+    color: #9a3412;
+    font-size: 0.9rem;
+    margin-top: 8px;
+}
+
 /* ── Header ── */
 .app-header {
     display: flex;
@@ -332,7 +447,10 @@ body {
 }
 """
 
-with gr.Blocks(title="Pet Nutrition Planner") as demo:
+# NOTE:
+# Put theme/css on Blocks (stable across Gradio versions).
+# Passing theme/css/footer args to `launch()` can cause blank UI in some versions.
+with gr.Blocks(title="Pet Nutrition Planner", theme=theme, css=CSS) as demo:
     api_base = gr.State(DEFAULT_API_BASE)
     token_state = gr.State("")
     email_state = gr.State("")
@@ -380,10 +498,24 @@ with gr.Blocks(title="Pet Nutrition Planner") as demo:
             with gr.Tab("💬 AI Advisor"):
                 with gr.Column(elem_classes=["modern-card"]):
                     gr.Markdown("### Ask personalized questions about pet food, portion sizes, and general wellness.")
-                    
-                    with gr.Row():
-                        chat_pet = gr.Dropdown(label="Context: Tailor advice for which pet?", choices=[], interactive=True, scale=4)
-                        btn_clear_chat = gr.Button("🗑️ Clear Chat History", scale=1)
+
+                    # Make the pet context selector visually distinct and place the warning inside it.
+                    with gr.Group(elem_classes=["pet-context-card"]):
+                        gr.Markdown("#### 🐾 Select a pet profile (required)")
+                        with gr.Row():
+                            chat_pet = gr.Dropdown(
+                                label="Pet",
+                                choices=[],
+                                value=None,
+                                interactive=True,
+                                scale=4,
+                            )
+                            btn_clear_chat = gr.Button("🗑️ Clear Chat History", scale=1)
+                        gr.Markdown(
+                            "⚠️ Select a pet from the dropdown first so the advisor can use the correct profile. "
+                            "If you don’t have one yet, create a pet profile in the ‘🐶 Pet Profiles’ tab.",
+                            elem_classes=["pet-context-note"],
+                        )
                         
                     chatbot = gr.Chatbot(
                         height=450,
@@ -456,11 +588,23 @@ with gr.Blocks(title="Pet Nutrition Planner") as demo:
                             gr.Markdown("### 📝 Log Activity")
                             act_pet = gr.Dropdown(label="Select Pet", choices=[])
                             act_date = gr.Textbox(label="Date (YYYY-MM-DD)", value=_date.today().isoformat())
-                            
-                            with gr.Row():
-                                act_steps = gr.Number(label="Steps Taken", value=0, precision=0)
-                                act_mins = gr.Number(label="Active Minutes", value=0, precision=0)
-                            
+
+                            act_type = gr.Dropdown(
+                                label="Activity Type",
+                                choices=[
+                                    ("Walk (slow)", "walk_slow"),
+                                    ("Walk (normal)", "walk_normal"),
+                                    ("Walk (fast)", "walk_fast"),
+                                    ("Play fetch", "play_fetch"),
+                                    ("Training", "training"),
+                                    ("Run", "run"),
+                                    ("No activity", "none"),
+                                ],
+                                value="walk_normal",
+                            )
+                            act_duration = gr.Number(label="Duration (minutes)", value=30, precision=0)
+                            act_intensity = gr.Slider(label="Intensity (1–5)", minimum=1, maximum=5, step=1, value=3)
+
                             btn_save_act = gr.Button("Save Activity", variant="secondary")
                             act_msg = gr.Markdown()
                             
@@ -479,6 +623,56 @@ with gr.Blocks(title="Pet Nutrition Planner") as demo:
                             table = gr.Dataframe(
                                 headers=["Date", "Steps", "Active Min", "Calories Burned"],
                                 datatype=["str", "number", "number", "number"],
+                                interactive=False,
+                            )
+
+            # --- Tab 4: Feedback ---
+            with gr.Tab("📝 Feedback"):
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        with gr.Group(elem_classes=["modern-card"]):
+                            gr.Markdown("### Share feedback")
+                            fb_pet = gr.Dropdown(label="Pet (optional)", choices=[], value=None)
+                            fb_page = gr.Dropdown(
+                                label="Related page",
+                                choices=[
+                                    ("General", "general"),
+                                    ("AI Advisor", "advisor"),
+                                    ("Pet Profiles", "pets"),
+                                    ("Daily Activity", "activity"),
+                                    ("Feedback Page", "feedback"),
+                                ],
+                                value="general",
+                            )
+                            fb_category = gr.Dropdown(
+                                label="Type",
+                                choices=[
+                                    ("Bug", "bug"),
+                                    ("Idea", "idea"),
+                                    ("UI / UX", "ui"),
+                                    ("Answer Accuracy", "accuracy"),
+                                    ("Performance", "performance"),
+                                    ("Other", "other"),
+                                ],
+                                value="other",
+                            )
+                            fb_rating = gr.Slider(label="Overall rating (1-5)", minimum=1, maximum=5, step=1, value=5)
+                            fb_message = gr.Textbox(
+                                label="Message",
+                                lines=8,
+                                placeholder="Tell me what is working, what is confusing, or what answer/page should be improved.",
+                            )
+                            with gr.Row():
+                                btn_submit_feedback = gr.Button("Submit Feedback", variant="primary")
+                                btn_refresh_feedback = gr.Button("Refresh History", variant="secondary")
+                            fb_msg = gr.Markdown()
+
+                    with gr.Column(scale=2):
+                        with gr.Group(elem_classes=["modern-card"]):
+                            gr.Markdown("### Recent feedback")
+                            fb_table = gr.Dataframe(
+                                headers=["Created At", "Page", "Category", "Rating", "Pet ID", "Message"],
+                                datatype=["str", "str", "str", "number", "str", "str"],
                                 interactive=False,
                             )
 
@@ -511,6 +705,7 @@ with gr.Blocks(title="Pet Nutrition Planner") as demo:
             gr.update(choices=choices),
             gr.update(choices=choices),
             gr.update(choices=choices),
+            gr.update(choices=choices),
             f"<div class='status-bar'>{msg}</div>",
         )
 
@@ -519,19 +714,23 @@ with gr.Blocks(title="Pet Nutrition Planner") as demo:
 
     su_btn.click(signup, inputs=[api_base, su_email, su_pass], outputs=[token_state, email_state, su_msg])\
           .then(_after_auth, inputs=[token_state, email_state], outputs=[auth_view, app_view, user_badge])\
-          .then(_refresh, inputs=[api_base, token_state], outputs=[pets_state, chat_pet, pet_select, act_pet, status_bar])
+          .then(_refresh, inputs=[api_base, token_state], outputs=[pets_state, chat_pet, pet_select, act_pet, fb_pet, status_bar])\
+          .then(list_feedback, inputs=[api_base, token_state], outputs=[fb_table, status_bar])
           
     li_btn.click(login, inputs=[api_base, li_email, li_pass], outputs=[token_state, email_state, li_msg])\
           .then(_after_auth, inputs=[token_state, email_state], outputs=[auth_view, app_view, user_badge])\
-          .then(_refresh, inputs=[api_base, token_state], outputs=[pets_state, chat_pet, pet_select, act_pet, status_bar])
+          .then(_refresh, inputs=[api_base, token_state], outputs=[pets_state, chat_pet, pet_select, act_pet, fb_pet, status_bar])\
+          .then(list_feedback, inputs=[api_base, token_state], outputs=[fb_table, status_bar])
 
     btn_logout.click(logout, inputs=[api_base, token_state], outputs=[token_state, email_state, status_bar])\
               .then(_after_auth, inputs=[token_state, email_state], outputs=[auth_view, app_view, user_badge])\
-              .then(lambda: ([], gr.update(choices=[], value=None), gr.update(choices=[], value=None), gr.update(choices=[], value=None), "<div class='status-bar'>Logged out</div>"),
-                    outputs=[pets_state, chat_pet, pet_select, act_pet, status_bar])
+              .then(lambda: ([], gr.update(choices=[], value=None), gr.update(choices=[], value=None), gr.update(choices=[], value=None), gr.update(choices=[], value=None), "<div class='status-bar'>Logged out</div>"),
+                    outputs=[pets_state, chat_pet, pet_select, act_pet, fb_pet, status_bar])\
+              .then(lambda: [], outputs=[fb_table])
 
     # Navbar/Refresh wiring (No longer need manual nav functions since we use gr.Tabs!)
-    btn_refresh.click(_refresh, inputs=[api_base, token_state], outputs=[pets_state, chat_pet, pet_select, act_pet, status_bar])
+    btn_refresh.click(_refresh, inputs=[api_base, token_state], outputs=[pets_state, chat_pet, pet_select, act_pet, fb_pet, status_bar])\
+               .then(list_feedback, inputs=[api_base, token_state], outputs=[fb_table, status_bar])
 
     # Pet CRUD Wiring
     pet_select.change(
@@ -547,11 +746,11 @@ with gr.Blocks(title="Pet Nutrition Planner") as demo:
     )
     btn_create.click(
         create_pet, inputs=[api_base, token_state, p_name, p_species, p_breed, p_age, p_weight, p_neutered, p_activity, p_health, p_allergy], outputs=[pet_msg]
-    ).then(_refresh, inputs=[api_base, token_state], outputs=[pets_state, chat_pet, pet_select, act_pet, status_bar])
+    ).then(_refresh, inputs=[api_base, token_state], outputs=[pets_state, chat_pet, pet_select, act_pet, fb_pet, status_bar])
     
     btn_update.click(
         update_pet, inputs=[api_base, token_state, pet_select, p_name, p_species, p_breed, p_age, p_weight, p_neutered, p_activity, p_health, p_allergy], outputs=[pet_msg]
-    ).then(_refresh, inputs=[api_base, token_state], outputs=[pets_state, chat_pet, pet_select, act_pet, status_bar])
+    ).then(_refresh, inputs=[api_base, token_state], outputs=[pets_state, chat_pet, pet_select, act_pet, fb_pet, status_bar])
     
     btn_delete.click(lambda: gr.update(visible=True), outputs=[delete_confirm_row])
     btn_cancel_delete.click(lambda: gr.update(visible=False), outputs=[delete_confirm_row])
@@ -560,11 +759,11 @@ with gr.Blocks(title="Pet Nutrition Planner") as demo:
         delete_pet, inputs=[api_base, token_state, pet_select], outputs=[pet_msg]
     ).then(
         lambda: gr.update(visible=False), outputs=[delete_confirm_row]
-    ).then(_refresh, inputs=[api_base, token_state], outputs=[pets_state, chat_pet, pet_select, act_pet, status_bar])
+    ).then(_refresh, inputs=[api_base, token_state], outputs=[pets_state, chat_pet, pet_select, act_pet, fb_pet, status_bar])
 
     # Activity Wiring
     btn_save_act.click(
-        add_activity, inputs=[api_base, token_state, act_pet, act_date, act_steps, act_mins], outputs=[act_msg]
+        add_activity, inputs=[api_base, token_state, act_pet, act_date, act_type, act_duration, act_intensity], outputs=[act_msg]
     ).then(list_activity, inputs=[api_base, token_state, act_pet], outputs=[table, status_bar])
     
     btn_adjust.click(adjust_today, inputs=[api_base, token_state, act_pet, act_date], outputs=[plan_md])
@@ -577,8 +776,25 @@ with gr.Blocks(title="Pet Nutrition Planner") as demo:
     chat_pet.change(lambda: [], outputs=[chatbot])
     btn_clear_chat.click(lambda: [], outputs=[chatbot])
 
+    # Feedback Wiring
+    btn_submit_feedback.click(
+        submit_feedback,
+        inputs=[api_base, token_state, fb_pet, fb_page, fb_category, fb_rating, fb_message],
+        outputs=[fb_msg, fb_message],
+    ).then(
+        list_feedback,
+        inputs=[api_base, token_state],
+        outputs=[fb_table, status_bar],
+    )
+
+    btn_refresh_feedback.click(
+        list_feedback,
+        inputs=[api_base, token_state],
+        outputs=[fb_table, status_bar],
+    )
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "7860"))
     server_name = os.getenv("GRADIO_SERVER_NAME", "127.0.0.1")
     share = os.getenv("GRADIO_SHARE", "0").strip() in ("1", "true", "True", "yes", "YES")
-    demo.launch(server_name=server_name, server_port=port, share=share,theme=theme, css=CSS, footer_links=["gradio", "settings"])
+    demo.launch(server_name=server_name, server_port=port, share=share)

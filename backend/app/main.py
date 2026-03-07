@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .db import init_db
 from .metrics import record
-from .routers import pets, nutrition, activity, admin, system, auth
+from .routers import pets, nutrition, activity, admin, system, auth, feedback
 from .services.rag_service import warmup_rag
 
 
@@ -61,3 +61,4 @@ app.include_router(nutrition.router)
 app.include_router(activity.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(feedback.router)
