@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..auth import require_user
 from ..db import get_db
 from ..metrics import record_rag
-from ..models import Pet, User
+from ..models import ChatLog, Pet, User
 from ..nutrition_calculator import NutritionCalculator
 from ..rag_engine import get_rag
 from ..schemas import CalorieCalculation, ChatRequest, ChatResponse
@@ -28,6 +28,40 @@ def _get_pet_owned(db: Session, pet_id: int, user: User) -> Pet:
 
 def _has_thai(text: str) -> bool:
     return any("\u0E00" <= ch <= "\u0E7F" for ch in (text or ""))
+
+
+def _create_chat_log(
+    db: Session,
+    *,
+    user_email: str,
+    pet_id: Optional[int],
+    question: str,
+    answer: str,
+    route_type: str,
+    status: str,
+    latency_ms: float,
+    retrieved_docs_count: int = 0,
+    model_name: Optional[str] = None,
+    source: str = "web_app",
+    error_message: Optional[str] = None,
+) -> int:
+    row = ChatLog(
+        user_email=user_email,
+        pet_id=pet_id,
+        question=question,
+        answer=answer,
+        route_type=route_type,
+        status=status,
+        latency_ms=float(latency_ms or 0.0),
+        retrieved_docs_count=int(retrieved_docs_count or 0),
+        model_name=model_name,
+        source=source,
+        error_message=error_message,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row.id
 
 
 def _build_calculation_answer(
@@ -150,9 +184,8 @@ def nutrition_chat(request: ChatRequest, user: User = Depends(require_user), db:
             "allergies": pet.allergies,
         }
 
+    question = (request.question or "").strip()
     try:
-        question = request.question or ""
-
         if is_calculation_question(question):
             t0 = now_ms()
             calc = NutritionCalculator()
@@ -179,6 +212,17 @@ def nutrition_chat(request: ChatRequest, user: User = Depends(require_user), db:
                     used_pet_profile=bool(pet),
                 )
                 latency_ms = now_ms() - t0
+                chat_log_id = _create_chat_log(
+                    db,
+                    user_email=user.email,
+                    pet_id=pet.id if pet else None,
+                    question=question,
+                    answer=answer,
+                    route_type="calculator",
+                    status="success",
+                    latency_ms=latency_ms,
+                    model_name="nutrition_calculator",
+                )
 
                 if os.getenv("ENABLE_MLFLOW_CHAT_LOGGING", "false").lower() in {"1", "true", "yes"}:
                     with mlflow_run(run_name="chat", tags={"component": "api", "endpoint": "/api/nutrition/chat"}):
@@ -186,7 +230,7 @@ def nutrition_chat(request: ChatRequest, user: User = Depends(require_user), db:
                         log_metrics({"latency_total_ms": latency_ms, "calc_routed": 1.0})
 
                 record_rag(route_type="calculator", latency_ms=latency_ms)
-                return ChatResponse(answer=answer, sources=[])
+                return ChatResponse(answer=answer, sources=[], chat_log_id=chat_log_id)
 
             daily_calories = calc.calculate_der(
                 weight_kg=weight_kg,
@@ -213,6 +257,17 @@ def nutrition_chat(request: ChatRequest, user: User = Depends(require_user), db:
                 used_pet_profile=bool(pet),
             )
             latency_ms = now_ms() - t0
+            chat_log_id = _create_chat_log(
+                db,
+                user_email=user.email,
+                pet_id=pet.id if pet else None,
+                question=question,
+                answer=answer,
+                route_type="calculator",
+                status="success",
+                latency_ms=latency_ms,
+                model_name="nutrition_calculator",
+            )
 
             if os.getenv("ENABLE_MLFLOW_CHAT_LOGGING", "false").lower() in {"1", "true", "yes"}:
                 with mlflow_run(run_name="chat", tags={"component": "api", "endpoint": "/api/nutrition/chat"}):
@@ -234,7 +289,7 @@ def nutrition_chat(request: ChatRequest, user: User = Depends(require_user), db:
                     )
 
             record_rag(route_type="calculator", latency_ms=latency_ms)
-            return ChatResponse(answer=answer, sources=[])
+            return ChatResponse(answer=answer, sources=[], chat_log_id=chat_log_id)
 
         rag = get_rag()
         t0 = now_ms()
@@ -290,7 +345,19 @@ def nutrition_chat(request: ChatRequest, user: User = Depends(require_user), db:
             )
 
         record_rag(route_type="rag", latency_ms=latency_ms, meta=meta, sources_count=len(sources))
-        return ChatResponse(answer=result.get("answer", ""), sources=sources)
+        chat_log_id = _create_chat_log(
+            db,
+            user_email=user.email,
+            pet_id=pet.id if pet else None,
+            question=question,
+            answer=result.get("answer", ""),
+            route_type="rag",
+            status="success",
+            latency_ms=latency_ms,
+            retrieved_docs_count=len(sources),
+            model_name=meta.get("llm_model") or getattr(rag, "llm_model_name", None),
+        )
+        return ChatResponse(answer=result.get("answer", ""), sources=sources, chat_log_id=chat_log_id)
 
     except Exception as e:
         fallback = (
@@ -298,7 +365,20 @@ def nutrition_chat(request: ChatRequest, user: User = Depends(require_user), db:
             "— ตรวจสอบการตั้งค่า .env (เช่น GOOGLE_API_KEY/OPENROUTER_API_KEY) "
             "หรือใช้ DISABLE_RAG=true เพื่อทดสอบ flow ของ UI/DB ก่อน"
         )
-        return ChatResponse(answer=fallback + f"\n\n(รายละเอียด: {type(e).__name__})", sources=[])
+        answer = fallback + f"\n\n(รายละเอียด: {type(e).__name__})"
+        chat_log_id = _create_chat_log(
+            db,
+            user_email=user.email,
+            pet_id=pet.id if pet else None,
+            question=question,
+            answer=answer,
+            route_type="rag",
+            status="error",
+            latency_ms=0.0,
+            model_name=None,
+            error_message=type(e).__name__,
+        )
+        return ChatResponse(answer=answer, sources=[], chat_log_id=chat_log_id)
 
 
 @router.get("/calculate/{pet_id}", response_model=CalorieCalculation)

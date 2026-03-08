@@ -1,5 +1,4 @@
 from typing import List, Optional
-
 from pydantic import BaseModel, ConfigDict, EmailStr
 
 
@@ -46,6 +45,7 @@ class ChatSource(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     sources: List[ChatSource] = []
+    chat_log_id: Optional[int] = None
 
 
 class CalorieCalculation(BaseModel):
@@ -59,6 +59,7 @@ class ActivitySync(BaseModel):
     date: str  # YYYY-MM-DD
     steps: int
     active_minutes: int
+
 
 class UserSignup(BaseModel):
     email: EmailStr
@@ -132,7 +133,6 @@ class FeedbackCreate(BaseModel):
     corrected_answer: Optional[str] = None
 
 
-
 class FeedbackResponse(BaseModel):
     id: int
     user_email: EmailStr
@@ -141,6 +141,48 @@ class FeedbackResponse(BaseModel):
     category: str
     rating: Optional[int] = None
     message: str
+    question: Optional[str] = None
+    answer: Optional[str] = None
+    corrected_answer: Optional[str] = None
     created_at: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ChatLogResponse(BaseModel):
+    id: int
+    pet_id: Optional[int] = None
+    question: str
+    answer: str
+    route_type: str
+    status: str
+    latency_ms: float
+    retrieved_docs_count: int
+    model_name: Optional[str] = None
+    source: str
+    error_message: Optional[str] = None
+    created_at: str
+
+
+class ChatFeedbackCreate(BaseModel):
+    chat_log_id: int
+    rating: int
+    reason: Optional[str] = None
+    comment: Optional[str] = None
+
+
+class ChatFeedbackResponse(BaseModel):
+    id: int
+    chat_log_id: int
+    user_email: EmailStr
+    rating: int
+    reason: Optional[str] = None
+    comment: Optional[str] = None
+    created_at: str
+
+
+class ChatSummaryResponse(BaseModel):
+    total_chats: int
+    avg_latency_ms: float
+    negative_feedback_rate: float
+    error_rate: float

@@ -55,40 +55,16 @@ def _load_breeds(filename: str, fallback: List[str]) -> List[str]:
 DOG_BREEDS = _load_breeds(
     "dog_breeds.csv",
     [
-        "Mixed Breed",
-        "Akita",
-        "Beagle",
-        "Boxer",
-        "Bulldog",
-        "Dachshund",
-        "French Bulldog",
-        "German Shepherd",
-        "Golden Retriever",
-        "Labrador Retriever",
-        "Poodle",
-        "Pug",
-        "Rottweiler",
-        "Shiba Inu",
-        "Siberian Husky",
-        "Yorkshire Terrier",
+        "Mixed Breed", "Akita", "Beagle", "Boxer", "Bulldog", "Dachshund",
+        "French Bulldog", "German Shepherd", "Golden Retriever", "Labrador Retriever",
+        "Poodle", "Pug", "Rottweiler", "Shiba Inu", "Siberian Husky", "Yorkshire Terrier",
     ],
 )
-if "Mixed Breed" not in DOG_BREEDS:
-    DOG_BREEDS = ["Mixed Breed", *DOG_BREEDS]
-
 CAT_BREEDS = _load_breeds(
     "cat_breeds.csv",
     [
-        "Domestic Shorthair",
-        "Domestic Longhair",
-        "Bengal",
-        "British Shorthair",
-        "Maine Coon",
-        "Persian",
-        "Ragdoll",
-        "Scottish Fold",
-        "Siamese",
-        "Sphynx",
+        "Domestic Shorthair", "Domestic Longhair", "Bengal", "British Shorthair",
+        "Maine Coon", "Persian", "Ragdoll", "Scottish Fold", "Siamese", "Sphynx",
     ],
 )
 
@@ -225,10 +201,9 @@ def load_pet_into_form(pets: List[dict], pet_id: int):
             gr.update(value=""),
             "",
         )
-    
+
     species = p.get("species", "dog")
     breed = p.get("breed", "")
-
     return (
         gr.update(value=p.get("name", "")),
         gr.update(value=species),
@@ -351,15 +326,15 @@ def adjust_today(api_base: str, token: str, pet_id: int, activity_date: str) -> 
 # Chat
 # -----------------------------
 def chat_send(api_base: str, token: str, pet_id: int, message: str, history: List[Dict[str, Any]]):
-    """Send a chat message and keep the latest Q/A for thumbs feedback."""
+    """Send a chat message and keep the latest Q/A plus chat_log_id for thumbs feedback."""
     message = (message or "").strip()
     if not message:
-        return history, "", "", "", pet_id
+        return history, "", "", "", pet_id, None
 
     if not pet_id:
         history = list(history or [])
         history.append({"role": "assistant", "content": "❌ Please select a pet profile first."})
-        return history, "", message, "", pet_id
+        return history, "", message, "", pet_id, None
 
     history = list(history or [])
     history.append({"role": "user", "content": message})
@@ -369,11 +344,12 @@ def chat_send(api_base: str, token: str, pet_id: int, message: str, history: Lis
     if not resp["ok"]:
         err = f"❌ {_pretty_err(resp)}"
         history.append({"role": "assistant", "content": err})
-        return history, "", message, err, pet_id
+        return history, "", message, err, pet_id, None
 
     answer = resp["data"].get("answer", "")
+    chat_log_id = resp["data"].get("chat_log_id")
     history.append({"role": "assistant", "content": answer})
-    return history, "", message, answer, pet_id
+    return history, "", message, answer, pet_id, chat_log_id
 
 
 # -----------------------------
@@ -382,26 +358,21 @@ def chat_send(api_base: str, token: str, pet_id: int, message: str, history: Lis
 def send_chat_vote(
     api_base: str,
     token: str,
-    pet_id: Optional[int],
-    last_q: str,
-    last_a: str,
+    chat_log_id: Optional[int],
     rating: int,
-    corrected_answer: str = "",
+    reason: str = "",
+    comment: str = "",
 ) -> str:
-    if not last_q or not last_a:
+    if not chat_log_id:
         return "❌ No recent answer to rate yet."
 
     payload = {
-        "pet_id": int(pet_id) if pet_id else None,
-        "page": "advisor",
-        "category": "accuracy",
+        "chat_log_id": int(chat_log_id),
         "rating": int(rating),
-        "message": "chat_vote",
-        "question": last_q,
-        "answer": last_a,
-        "corrected_answer": (corrected_answer or "").strip() or None,
+        "reason": (reason or "").strip() or None,
+        "comment": (comment or "").strip() or None,
     }
-    resp = _req("POST", api_base, "/api/feedback", token=token, json_body=payload)
+    resp = _req("POST", api_base, "/api/chat/feedback", token=token, json_body=payload)
     if not resp["ok"]:
         return f"❌ Vote failed: {_pretty_err(resp)}"
     return "✅ Saved. Thank you!"
@@ -455,6 +426,46 @@ def list_feedback(api_base: str, token: str) -> Tuple[List[List[Any]], str]:
         for r in rows
     ]
     return table, "<div class='status-bar'>✅ Feedback history refreshed.</div>"
+
+
+def get_chat_summary(api_base: str, token: str) -> str:
+    resp = _req("GET", api_base, "/api/chat/summary", token=token)
+    if not resp["ok"]:
+        return f"❌ Failed to load summary: {_pretty_err(resp)}"
+
+    data = resp["data"] or {}
+    total = int(data.get("total_chats", 0) or 0)
+    avg_latency = float(data.get("avg_latency_ms", 0.0) or 0.0)
+    negative_rate = float(data.get("negative_feedback_rate", 0.0) or 0.0) * 100
+    error_rate = float(data.get("error_rate", 0.0) or 0.0) * 100
+
+    return f"""
+- **Total chats:** {total}
+- **Avg latency:** {avg_latency:.2f} ms
+- **Negative feedback rate:** {negative_rate:.1f}%
+- **Error rate:** {error_rate:.1f}%
+"""
+
+
+def list_chat_logs(api_base: str, token: str) -> Tuple[List[List[Any]], str]:
+    resp = _req("GET", api_base, "/api/chat/logs", token=token, params={"limit": 20})
+    if not resp["ok"]:
+        return [], f"<div class='status-bar'>❌ Failed to load chat logs: {_pretty_err(resp)}</div>"
+
+    rows = resp["data"] or []
+    table = [
+        [
+            (r.get("created_at") or "")[:19].replace("T", " "),
+            r.get("pet_id") or "-",
+            r.get("route_type") or "-",
+            r.get("status") or "-",
+            float(r.get("latency_ms") or 0),
+            int(r.get("retrieved_docs_count") or 0),
+            r.get("question") or "",
+        ]
+        for r in rows
+    ]
+    return table, "<div class='status-bar'>✅ Chat monitoring refreshed.</div>"
 
 
 # -----------------------------
@@ -568,6 +579,7 @@ with gr.Blocks(title="Pet Nutrition Planner", theme=theme, css=CSS) as demo:
     last_q_state = gr.State("")
     last_a_state = gr.State("")
     last_pet_state = gr.State(None)
+    last_chat_log_id_state = gr.State(None)
 
     # -----------------------------
     # 1. AUTHENTICATION VIEW
@@ -808,6 +820,16 @@ with gr.Blocks(title="Pet Nutrition Planner", theme=theme, css=CSS) as demo:
             btn_refresh = gr.Button("🔄 Sync Data", size="sm", scale=1)
             status_bar = gr.HTML("<div class='status-bar'>System ready.</div>")
 
+        # Bottom-of-page monitoring section (appears above the Gradio footer/banner)
+        with gr.Group(elem_classes=["modern-card"]):
+            gr.Markdown("### Chat monitoring")
+            chat_summary_md = gr.Markdown("No chat data yet.")
+            chat_table = gr.Dataframe(
+                headers=["Created At", "Pet ID", "Route", "Status", "Latency (ms)", "Docs", "Question"],
+                datatype=["str", "str", "str", "str", "number", "number", "str"],
+                interactive=False,
+            )
+
     # -----------------------------
     # UI EVENT WIRING
     # -----------------------------
@@ -836,28 +858,37 @@ with gr.Blocks(title="Pet Nutrition Planner", theme=theme, css=CSS) as demo:
             f"<div class='status-bar'>{msg}</div>",
         )
 
+    def _refresh_monitoring(api_base_val: str, token: str):
+        summary = get_chat_summary(api_base_val, token)
+        logs, status = list_chat_logs(api_base_val, token)
+        return summary, logs, status
+
     # Authentication wiring
     api_in.change(_set_api_base, inputs=api_in, outputs=api_base)
 
     su_btn.click(signup, inputs=[api_base, su_email, su_pass], outputs=[token_state, email_state, su_msg])\
           .then(_after_auth, inputs=[token_state, email_state], outputs=[auth_view, app_view, user_badge])\
           .then(_refresh, inputs=[api_base, token_state], outputs=[pets_state, chat_pet, pet_select, act_pet, fb_pet, status_bar])\
-          .then(list_feedback, inputs=[api_base, token_state], outputs=[fb_table, status_bar])
+          .then(list_feedback, inputs=[api_base, token_state], outputs=[fb_table, status_bar])\
+          .then(_refresh_monitoring, inputs=[api_base, token_state], outputs=[chat_summary_md, chat_table, status_bar])
           
     li_btn.click(login, inputs=[api_base, li_email, li_pass], outputs=[token_state, email_state, li_msg])\
           .then(_after_auth, inputs=[token_state, email_state], outputs=[auth_view, app_view, user_badge])\
           .then(_refresh, inputs=[api_base, token_state], outputs=[pets_state, chat_pet, pet_select, act_pet, fb_pet, status_bar])\
-          .then(list_feedback, inputs=[api_base, token_state], outputs=[fb_table, status_bar])
+          .then(list_feedback, inputs=[api_base, token_state], outputs=[fb_table, status_bar])\
+          .then(_refresh_monitoring, inputs=[api_base, token_state], outputs=[chat_summary_md, chat_table, status_bar])
 
     btn_logout.click(logout, inputs=[api_base, token_state], outputs=[token_state, email_state, status_bar])\
               .then(_after_auth, inputs=[token_state, email_state], outputs=[auth_view, app_view, user_badge])\
               .then(lambda: ([], gr.update(choices=[], value=None), gr.update(choices=[], value=None), gr.update(choices=[], value=None), gr.update(choices=[], value=None), "<div class='status-bar'>Logged out</div>"),
                     outputs=[pets_state, chat_pet, pet_select, act_pet, fb_pet, status_bar])\
-              .then(lambda: [], outputs=[fb_table])
+              .then(lambda: [], outputs=[fb_table])\
+              .then(lambda: ("No chat data yet.", []), outputs=[chat_summary_md, chat_table])
 
     # Navbar/Refresh wiring (No longer need manual nav functions since we use gr.Tabs!)
     btn_refresh.click(_refresh, inputs=[api_base, token_state], outputs=[pets_state, chat_pet, pet_select, act_pet, fb_pet, status_bar])\
-               .then(list_feedback, inputs=[api_base, token_state], outputs=[fb_table, status_bar])
+               .then(list_feedback, inputs=[api_base, token_state], outputs=[fb_table, status_bar])\
+               .then(_refresh_monitoring, inputs=[api_base, token_state], outputs=[chat_summary_md, chat_table, status_bar])
 
     # Pet CRUD Wiring
     pet_select.change(
@@ -898,24 +929,23 @@ with gr.Blocks(title="Pet Nutrition Planner", theme=theme, css=CSS) as demo:
     act_pet.change(list_activity, inputs=[api_base, token_state, act_pet], outputs=[table, status_bar])
 
     # Chat Wiring & History Management
-    send.click(chat_send, inputs=[api_base, token_state, chat_pet, msg, chatbot], outputs=[chatbot, msg, last_q_state, last_a_state, last_pet_state])
-    msg.submit(chat_send, inputs=[api_base, token_state, chat_pet, msg, chatbot], outputs=[chatbot, msg, last_q_state, last_a_state, last_pet_state])
+    send.click(chat_send, inputs=[api_base, token_state, chat_pet, msg, chatbot], outputs=[chatbot, msg, last_q_state, last_a_state, last_pet_state, last_chat_log_id_state])
+    msg.submit(chat_send, inputs=[api_base, token_state, chat_pet, msg, chatbot], outputs=[chatbot, msg, last_q_state, last_a_state, last_pet_state, last_chat_log_id_state])
     
     btn_up.click(
-        lambda api_base, token, pet_id, q, a: send_chat_vote(api_base, token, pet_id, q, a, 1, ""),
-        inputs=[api_base, token_state, last_pet_state, last_q_state, last_a_state],
+        lambda api_base, token, chat_log_id: send_chat_vote(api_base, token, chat_log_id, 1, "", ""),
+        inputs=[api_base, token_state, last_chat_log_id_state],
         outputs=[vote_status],
-    )
+    ).then(_refresh_monitoring, inputs=[api_base, token_state], outputs=[chat_summary_md, chat_table, status_bar])
     btn_down.click(
-        lambda api_base, token, pet_id, q, a: (gr.update(visible=True), gr.update(visible=True), "👎 Please add a correction (optional) then submit."),
-        inputs=[api_base, token_state, last_pet_state, last_q_state, last_a_state],
+        lambda: (gr.update(visible=True), gr.update(visible=True), "👎 Please add a correction (optional) then submit."),
         outputs=[corrected_box, btn_submit_correction, vote_status],
     )
     btn_submit_correction.click(
-        lambda api_base, token, pet_id, q, a, corr: (send_chat_vote(api_base, token, pet_id, q, a, -1, corr), gr.update(value="", visible=False), gr.update(visible=False)),
-        inputs=[api_base, token_state, last_pet_state, last_q_state, last_a_state, corrected_box],
+        lambda api_base, token, chat_log_id, corr: (send_chat_vote(api_base, token, chat_log_id, -1, "incorrect", corr), gr.update(value="", visible=False), gr.update(visible=False)),
+        inputs=[api_base, token_state, last_chat_log_id_state, corrected_box],
         outputs=[vote_status, corrected_box, btn_submit_correction],
-    )
+    ).then(_refresh_monitoring, inputs=[api_base, token_state], outputs=[chat_summary_md, chat_table, status_bar])
 
     chat_pet.change(lambda: [], outputs=[chatbot])
     btn_clear_chat.click(lambda: [], outputs=[chatbot])
@@ -935,6 +965,10 @@ with gr.Blocks(title="Pet Nutrition Planner", theme=theme, css=CSS) as demo:
         list_feedback,
         inputs=[api_base, token_state],
         outputs=[fb_table, status_bar],
+    ).then(
+        _refresh_monitoring,
+        inputs=[api_base, token_state],
+        outputs=[chat_summary_md, chat_table, status_bar],
     )
 
 if __name__ == "__main__":

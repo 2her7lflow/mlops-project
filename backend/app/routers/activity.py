@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..auth import require_user
 from ..db import get_db
-from ..models import ActivityLog, Pet, User
+from ..models import Pet, ActivityLog, User
+from ..schemas import ActivitySync, ActivityCreate, ActivityResponse
 from ..nutrition_calculator import NutritionCalculator
-from ..schemas import ActivityCreate, ActivityResponse, ActivitySync
 
 router = APIRouter(prefix="/api/activity", tags=["activity"])
 

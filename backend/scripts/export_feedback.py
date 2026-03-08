@@ -2,18 +2,15 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path as _Path
-
 sys.path.append(str(_Path(__file__).resolve().parents[1]))
 
 import json
 import os
 from pathlib import Path
-
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
 from app.models import Feedback
-
 
 def _kb_dir() -> Path:
     kb_dir = os.getenv("KNOWLEDGE_BASE_DIR", "").strip()

@@ -1,21 +1,20 @@
 # rag_engine.py
-import json
 import os
 import shutil
 import time
+import json
 from pathlib import Path as _Path
-
 from dotenv import load_dotenv
 
 _RAG_IMPORT_ERROR = None
 try:
+    from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+    from langchain_community.document_loaders import PyPDFLoader, CSVLoader
     from langchain_chroma import Chroma
-    from langchain_community.document_loaders import CSVLoader, PyPDFLoader
-    from langchain_community.retrievers import BM25Retriever
-    from langchain_core.documents import Document
-    from langchain_core.prompts import PromptTemplate
-    from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
     from langchain_text_splitters import RecursiveCharacterTextSplitter
+    from langchain_core.prompts import PromptTemplate
+    from langchain_core.documents import Document
+    from langchain_community.retrievers import BM25Retriever
 except Exception as e:  # pragma: no cover
     _RAG_IMPORT_ERROR = e
 

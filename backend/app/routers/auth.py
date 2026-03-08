@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
 from ..auth import create_session, hash_password, require_user, verify_password
 from ..db import get_db
-from ..models import AuthSession, User
-from ..schemas import AuthResponse, UserLogin, UserSignup
+from ..models import User, AuthSession
+from ..schemas import UserSignup, UserLogin, AuthResponse
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 

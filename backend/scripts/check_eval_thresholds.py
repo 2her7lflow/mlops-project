@@ -7,12 +7,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.mlops_utils import (
-    evaluate_thresholds,
-    load_quality_thresholds,
-    read_json,
-    resolve_default_kb_dir,
-)
+from app.mlops_utils import evaluate_thresholds, load_quality_thresholds, read_json, resolve_default_kb_dir
 
 
 def main() -> None:

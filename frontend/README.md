@@ -1,56 +1,29 @@
-# frontend/ — Gradio UI
+# Gradio Frontend
 
-This directory contains the Gradio frontend for the Pet Nutrition AI project.
+This replaces the previous React/Vite UI.
 
-## What the frontend does
+## Run with Docker Compose (recommended)
 
-- login and signup
-- pet profile CRUD
-- species-specific breed dropdowns for dogs and cats
-- activity logging
-- nutrition plan generation
-- chat-based nutrition assistant
-- feedback submission
-
-## Run with Docker Compose
-
-From the repository root:
+From repo root:
 
 ```bash
 docker compose up --build
 ```
 
-Open the UI at `http://localhost:7860`.
+Open: http://localhost:7860
 
-## Run locally
-
-### PowerShell
-
-```powershell
-cd frontend
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-$env:BACKEND_URL = "http://localhost:8000"
-python app.py
-```
-
-### Bash
+## Local run (no docker)
 
 ```bash
 cd frontend
 python -m venv .venv
-source .venv/bin/activate
+# activate venv...
 pip install -r requirements.txt
-export BACKEND_URL="http://localhost:8000"
+set BACKEND_URL=http://localhost:8000   # PowerShell: $env:BACKEND_URL="http://localhost:8000"
 python app.py
 ```
 
-## Breed dropdown behavior
 
-The Pet Profiles page uses separate breed lists:
+## Added runtime chat logging
 
-- `Dog` -> dog breeds
-- `Cat` -> cat breeds
-
-Breed data is loaded from the CSV files in `knowledge_base/raw/breed_info/` and falls back to a small built-in list if the CSV files are unavailable.
+This version stores production-style chat logs in the database, supports per-answer thumbs feedback, and exposes simple chat monitoring metrics (total chats, average latency, negative feedback rate, error rate).

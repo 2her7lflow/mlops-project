@@ -117,7 +117,7 @@ The Gradio frontend already sends this header after login.
 
 ## Environment variables
 
-Create `backend/.env` from `../.env.example`, or use the repo-root `.env`. The most important values are:
+Create `backend/.env` from `.env.example`. The most important values are:
 
 ```env
 DATABASE_URL=sqlite:///./dev.db
@@ -154,7 +154,7 @@ cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-Copy-Item ..\.env.example .env
+copy .env.example .env
 uvicorn main:app --reload --reload-include .\.env --port 8000
 ```
 
@@ -164,7 +164,7 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp ../.env.example .env
+cp .env.example .env
 uvicorn main:app --reload --port 8000
 ```
 
@@ -229,3 +229,8 @@ ALTER TABLE feedback
   ADD COLUMN IF NOT EXISTS corrected_answer TEXT;
 ```
 
+
+
+## Added runtime chat logging
+
+This version stores production-style chat logs in the database, supports per-answer thumbs feedback, and exposes simple chat monitoring metrics (total chats, average latency, negative feedback rate, error rate).

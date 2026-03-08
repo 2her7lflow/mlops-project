@@ -1,4 +1,4 @@
-from typing import Optional, TypedDict
+from typing import TypedDict, Optional
 
 
 class PetContext(TypedDict, total=False):

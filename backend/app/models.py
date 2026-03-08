@@ -89,3 +89,37 @@ class Feedback(Base):
     corrected_answer = Column(Text, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ChatLog(Base):
+    __tablename__ = "chat_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_email = Column(String, index=True, nullable=False)
+    pet_id = Column(Integer, ForeignKey("pets.id", ondelete="SET NULL"), index=True, nullable=True)
+
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+    route_type = Column(String, nullable=False, default="rag")
+    status = Column(String, nullable=False, default="success")
+    latency_ms = Column(Float, nullable=False, default=0.0)
+    retrieved_docs_count = Column(Integer, nullable=False, default=0)
+    model_name = Column(String, nullable=True)
+    source = Column(String, nullable=False, default="web_app")
+    error_message = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ChatFeedback(Base):
+    __tablename__ = "chat_feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chat_log_id = Column(Integer, ForeignKey("chat_logs.id", ondelete="CASCADE"), index=True, nullable=False)
+    user_email = Column(String, index=True, nullable=False)
+
+    rating = Column(Integer, nullable=False)  # -1 or 1
+    reason = Column(String, nullable=True)
+    comment = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

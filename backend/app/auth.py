@@ -11,7 +11,8 @@ from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from .db import get_db
-from .models import AuthSession, User
+from .models import User, AuthSession
+
 
 _PBKDF2_ITERS = 200_000
 _SESSION_TTL_HOURS = 24 * 7  # 7 days

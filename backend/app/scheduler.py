@@ -10,12 +10,7 @@ from pathlib import Path
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 
-from .mlops_utils import (
-    evaluate_thresholds,
-    load_quality_thresholds,
-    read_json,
-    resolve_default_kb_dir,
-)
+from .mlops_utils import evaluate_thresholds, load_quality_thresholds, read_json, resolve_default_kb_dir
 
 try:
     import mlflow  # type: ignore
@@ -131,20 +126,7 @@ def _pipeline_once(env: dict[str, str], log_to_mlflow: bool) -> None:
     _run(export_cmd, env=base_env)
     _run(feedback_eval_cmd, env=base_env)
     _run(build_cmd, env=candidate_env)
-
-    # Windows/Chroma can be sensitive immediately after a rebuild.
-    time.sleep(float(env.get("KB_POST_BUILD_SLEEP_SEC", "2")))
-
-    try:
-        _run(eval_cmd, env=candidate_env)
-    except subprocess.CalledProcessError as e:
-        if os.name == "nt" and e.returncode == 3221225477:
-            raise RuntimeError(
-                "eval_rag.py crashed with Windows access violation (3221225477). "
-                "This is usually a native-library crash during RAG evaluation. "
-                "Use the updated eval_rag.py with isolated-case mode enabled."
-            ) from e
-        raise
+    _run(eval_cmd, env=candidate_env)
 
     thresholds = load_quality_thresholds(repo_root)
     metrics = read_json(candidate_processed / "eval_metrics.json")

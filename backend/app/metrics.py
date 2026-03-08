@@ -5,6 +5,7 @@ import time
 from collections import defaultdict
 from typing import Dict
 
+
 _lock = threading.Lock()
 _request_counts: Dict[str, int] = defaultdict(int)
 _latency_ms_sum: Dict[str, float] = defaultdict(float)
