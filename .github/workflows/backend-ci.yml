@@ -35,7 +35,8 @@ jobs:
 
   rag-eval:
     runs-on: ubuntu-latest
-    if: ${{ secrets.GOOGLE_API_KEY != '' }}
+    env:
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -50,17 +51,21 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Build vectorstore
-        env:
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        if: ${{ env.GOOGLE_API_KEY != '' }}
         run: |
           python backend/scripts/build_vectorstore.py
 
       - name: Evaluate RAG
-        env:
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        if: ${{ env.GOOGLE_API_KEY != '' }}
         run: |
           python backend/scripts/eval_rag.py
 
       - name: Enforce eval thresholds
+        if: ${{ env.GOOGLE_API_KEY != '' }}
         run: |
           python backend/scripts/check_eval_thresholds.py
+
+      - name: Skip RAG eval when secret is unavailable
+        if: ${{ env.GOOGLE_API_KEY == '' }}
+        run: |
+          echo "GOOGLE_API_KEY is not set; skipping optional RAG evaluation job steps."

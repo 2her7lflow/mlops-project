@@ -4,6 +4,7 @@
 .env
 .env.*
 *.env
+.venv-dvc
 
 # ------------------------------
 # Python
@@ -49,6 +50,7 @@ knowledge_base/processed/
 knowledge_base/**/vectorstore/
 knowledge_base/**/.chroma*/
 knowledge_base/**/chroma*/
+knowledge_base/candidates/
 
 # ------------------------------
 # Node / Frontend
