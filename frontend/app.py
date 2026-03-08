@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import csv
 import os
 from datetime import date as _date
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import gradio as gr
@@ -30,16 +32,86 @@ except Exception:
 DEFAULT_API_BASE = (os.getenv("API_BASE_URL") or os.getenv("BACKEND_URL") or "http://localhost:8000").rstrip("/")
 HTTP_TIMEOUT_S = float(os.getenv("HTTP_TIMEOUT_S", "180"))  # read timeout seconds for API calls
 
-COMMON_BREEDS = [
-    "Mixed Breed",
-    # Dogs
-    "Akita", "Beagle", "Boxer", "Bulldog", "Dachshund", "French Bulldog", 
-    "German Shepherd", "Golden Retriever", "Labrador Retriever", "Poodle", 
-    "Pug", "Rottweiler", "Shiba Inu", "Siberian Husky", "Yorkshire Terrier",
-    # Cats
-    "Bengal", "British Shorthair", "Domestic Longhair", "Domestic Shorthair", 
-    "Maine Coon", "Persian", "Ragdoll", "Scottish Fold", "Siamese", "Sphynx"
-]
+BREED_INFO_DIR = Path(__file__).resolve().parents[1] / "knowledge_base" / "raw" / "breed_info"
+
+
+def _load_breeds(filename: str, fallback: List[str]) -> List[str]:
+    path = BREED_INFO_DIR / filename
+    try:
+        with path.open("r", encoding="utf-8-sig", newline="") as fh:
+            rows = csv.DictReader(fh)
+            breeds = [row.get("breed", "").strip() for row in rows if row.get("breed", "").strip()]
+        seen = set()
+        ordered = []
+        for breed in breeds:
+            if breed not in seen:
+                ordered.append(breed)
+                seen.add(breed)
+        return ordered or fallback
+    except Exception:
+        return fallback
+
+
+DOG_BREEDS = _load_breeds(
+    "dog_breeds.csv",
+    [
+        "Mixed Breed",
+        "Akita",
+        "Beagle",
+        "Boxer",
+        "Bulldog",
+        "Dachshund",
+        "French Bulldog",
+        "German Shepherd",
+        "Golden Retriever",
+        "Labrador Retriever",
+        "Poodle",
+        "Pug",
+        "Rottweiler",
+        "Shiba Inu",
+        "Siberian Husky",
+        "Yorkshire Terrier",
+    ],
+)
+if "Mixed Breed" not in DOG_BREEDS:
+    DOG_BREEDS = ["Mixed Breed", *DOG_BREEDS]
+
+CAT_BREEDS = _load_breeds(
+    "cat_breeds.csv",
+    [
+        "Domestic Shorthair",
+        "Domestic Longhair",
+        "Bengal",
+        "British Shorthair",
+        "Maine Coon",
+        "Persian",
+        "Ragdoll",
+        "Scottish Fold",
+        "Siamese",
+        "Sphynx",
+    ],
+)
+
+
+def _breed_choices_for_species(species: str) -> List[str]:
+    return CAT_BREEDS if species == "cat" else DOG_BREEDS
+
+
+def _default_breed_for_species(species: str) -> str:
+    breeds = _breed_choices_for_species(species)
+    preferred = "Domestic Shorthair" if species == "cat" else "Mixed Breed"
+    if preferred in breeds:
+        return preferred
+    return breeds[0] if breeds else preferred
+
+
+def _update_breed_dropdown(species: str, current_breed: str = "", preserve_custom: bool = False):
+    breeds = _breed_choices_for_species(species)
+    if preserve_custom and current_breed:
+        breed_value = current_breed
+    else:
+        breed_value = current_breed if current_breed in breeds else _default_breed_for_species(species)
+    return gr.update(choices=breeds, value=breed_value)
 
 # -----------------------------
 # HTTP helpers
@@ -142,16 +214,25 @@ def load_pet_into_form(pets: List[dict], pet_id: int):
     p = next((x for x in pets if x["id"] == pet_id), None)
     if not p:
         return (
-            gr.update(value=""), gr.update(value="dog"), gr.update(value="Mixed Breed"),
-            gr.update(value=0.0), gr.update(value=0.0), gr.update(value=False),
-            gr.update(value="moderate"), gr.update(value=""), gr.update(value=""),
+            gr.update(value=""),
+            gr.update(value="dog"),
+            _update_breed_dropdown("dog"),
+            gr.update(value=0.0),
+            gr.update(value=0.0),
+            gr.update(value=False),
+            gr.update(value="moderate"),
+            gr.update(value=""),
+            gr.update(value=""),
             "",
         )
     
+    species = p.get("species", "dog")
+    breed = p.get("breed", "")
+
     return (
         gr.update(value=p.get("name", "")),
-        gr.update(value=p.get("species", "dog")),
-        gr.update(value=p.get("breed", "Mixed Breed")),
+        gr.update(value=species),
+        _update_breed_dropdown(species, breed, preserve_custom=True),
         gr.update(value=float(p.get("age_years", 0.0))),
         gr.update(value=float(p.get("weight_kg", 0.0))),
         gr.update(value=bool(p.get("is_neutered", False))),
@@ -163,9 +244,15 @@ def load_pet_into_form(pets: List[dict], pet_id: int):
 
 def clear_pet_form():
     return (
-        gr.update(value=""), gr.update(value="dog"), gr.update(value="Mixed Breed"),
-        gr.update(value=1.0), gr.update(value=5.0), gr.update(value=False),
-        gr.update(value="moderate"), gr.update(value=""), gr.update(value=""),
+        gr.update(value=""),
+        gr.update(value="dog"),
+        _update_breed_dropdown("dog"),
+        gr.update(value=1.0),
+        gr.update(value=5.0),
+        gr.update(value=False),
+        gr.update(value="moderate"),
+        gr.update(value=""),
+        gr.update(value=""),
         "✨ Form cleared. Enter details to add a new pet."
     )
 
@@ -592,7 +679,7 @@ with gr.Blocks(title="Pet Nutrition Planner", theme=theme, css=CSS) as demo:
                                 p_name = gr.Textbox(label="Name", placeholder="e.g. Bella")
                                 p_species = gr.Dropdown(label="Species", choices=[("Dog", "dog"), ("Cat", "cat")], value="dog")
                             
-                            p_breed = gr.Dropdown(label="Breed", choices=COMMON_BREEDS, value="Mixed Breed", allow_custom_value=True)
+                            p_breed = gr.Dropdown(label="Breed", choices=DOG_BREEDS, value=_default_breed_for_species("dog"), allow_custom_value=True)
                             
                             with gr.Row():
                                 p_age = gr.Number(label="Age (years)", value=1.0, precision=1)
@@ -778,6 +865,7 @@ with gr.Blocks(title="Pet Nutrition Planner", theme=theme, css=CSS) as demo:
         inputs=[pets_state, pet_select],
         outputs=[p_name, p_species, p_breed, p_age, p_weight, p_neutered, p_activity, p_health, p_allergy, pet_msg],
     )
+    p_species.change(_update_breed_dropdown, inputs=[p_species, p_breed], outputs=[p_breed])
     btn_clear.click(
         clear_pet_form,
         outputs=[p_name, p_species, p_breed, p_age, p_weight, p_neutered, p_activity, p_health, p_allergy, pet_msg]

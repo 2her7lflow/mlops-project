@@ -32,3 +32,35 @@ jobs:
           DISABLE_RAG: "true"
         run: |
           pytest -q backend/tests
+
+  rag-eval:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.GOOGLE_API_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install -U pip
+          pip install -r backend/requirements.txt
+
+      - name: Build vectorstore
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          python backend/scripts/build_vectorstore.py
+
+      - name: Evaluate RAG
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          python backend/scripts/eval_rag.py
+
+      - name: Enforce eval thresholds
+        run: |
+          python backend/scripts/check_eval_thresholds.py

@@ -16,6 +16,7 @@ __pycache__/
 *.egg-info/
 *.dist-info/
 .venv/
+.venv*/
 venv/
 ENV/
 env/
@@ -40,7 +41,15 @@ mlartifacts/
 # Local DB / runtime
 # ------------------------------
 *.db
+*.db-journal
 *.sqlite3
+test.db
+
+# Gradio / local app state
+.gradio/
+
+# Python version managers
+.python-version
 
 # ------------------------------
 # RAG / Knowledge base artifacts (generated)

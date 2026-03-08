@@ -1,2 +1,10 @@
 rag:
   rebuild_every_days: 3
+
+mlops:
+  min_retrieval_hit_rate: 0.50
+  min_source_match_rate: 0.30
+  min_language_match_rate: 0.95
+  min_expected_no_context_accuracy: 0.80
+  max_no_context_rate: 0.80
+  max_latency_ms_avg: 8000

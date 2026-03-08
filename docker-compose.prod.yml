@@ -1,6 +1,22 @@
 version: "3.9"
 
 services:
+  mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    command: >-
+      mlflow server
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --default-artifact-root /mlflow/artifacts
+      --host 0.0.0.0
+      --port 5000
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -13,8 +29,11 @@ services:
       - ./knowledge_base:/knowledge_base
     environment:
       - KNOWLEDGE_BASE_DIR=/knowledge_base
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
     command: gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000 --workers 2 --timeout 120
     restart: unless-stopped
+    depends_on:
+      - mlflow
 
   frontend:
     build:
@@ -28,3 +47,6 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  mlflow_data:

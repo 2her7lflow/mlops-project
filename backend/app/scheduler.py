@@ -10,12 +10,7 @@ from pathlib import Path
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 
-from .mlops_utils import (
-    evaluate_thresholds,
-    load_quality_thresholds,
-    read_json,
-    resolve_default_kb_dir,
-)
+from .mlops_utils import evaluate_thresholds, load_quality_thresholds, read_json, resolve_default_kb_dir
 
 try:
     import mlflow  # type: ignore
