@@ -431,7 +431,10 @@ def list_feedback(api_base: str, token: str) -> Tuple[List[List[Any]], str]:
 def get_chat_summary(api_base: str, token: str) -> str:
     resp = _req("GET", api_base, "/api/chat/summary", token=token)
     if not resp["ok"]:
-        return f"❌ Failed to load summary: {_pretty_err(resp)}"
+        return f"""### Chat monitoring
+
+❌ Failed to load summary: {_pretty_err(resp)}
+"""
 
     data = resp["data"] or {}
     total = int(data.get("total_chats", 0) or 0)
@@ -439,7 +442,8 @@ def get_chat_summary(api_base: str, token: str) -> str:
     negative_rate = float(data.get("negative_feedback_rate", 0.0) or 0.0) * 100
     error_rate = float(data.get("error_rate", 0.0) or 0.0) * 100
 
-    return f"""
+    return f"""### Chat monitoring
+
 - **Total chats:** {total}
 - **Avg latency:** {avg_latency:.2f} ms
 - **Negative feedback rate:** {negative_rate:.1f}%
@@ -565,6 +569,60 @@ body {
     color: #64748b;
     font-size: 0.85rem;
     margin-top: 8px;
+}
+
+/* ── Footer admin monitor ── */
+#footer-monitor-shell {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0;
+}
+#footer-monitor-shell details {
+    position: relative;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+#footer-monitor-shell summary {
+    list-style: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #64748b;
+    letter-spacing: 0;
+    text-transform: none;
+    padding: 0;
+}
+#footer-monitor-shell summary::-webkit-details-marker {
+    display: none;
+}
+#footer-monitor-shell details:not([open]) > div {
+    display: none;
+}
+#footer-monitor-shell details[open] > div {
+    display: block;
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 10px);
+    width: min(560px, calc(100vw - 28px));
+    max-height: min(70vh, 520px);
+    overflow: auto;
+    border: 1px solid #dbe4ee;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+    padding: 10px 12px;
+    z-index: 40;
+}
+#footer-monitor-shell .hide-label label,
+#footer-monitor-shell .hide-label > .label-wrap {
+    display: none !important;
+}
+#footer-monitor-shell .gr-dataframe {
+    max-height: 220px;
+}
+.footer-admin-sep {
+    color: #94a3b8;
+    margin: 0 8px;
 }
 """
 
@@ -820,15 +878,42 @@ with gr.Blocks(title="Pet Nutrition Planner", theme=theme, css=CSS) as demo:
             btn_refresh = gr.Button("🔄 Sync Data", size="sm", scale=1)
             status_bar = gr.HTML("<div class='status-bar'>System ready.</div>")
 
-        # Bottom-of-page monitoring section (appears above the Gradio footer/banner)
-        with gr.Group(elem_classes=["modern-card"]):
-            gr.Markdown("### Chat monitoring")
-            chat_summary_md = gr.Markdown("No chat data yet.")
-            chat_table = gr.Dataframe(
-                headers=["Created At", "Pet ID", "Route", "Status", "Latency (ms)", "Docs", "Question"],
-                datatype=["str", "str", "str", "str", "number", "number", "str"],
-                interactive=False,
-            )
+        with gr.Accordion("Admin", open=False, elem_id="footer-monitor-shell"):
+            with gr.Column():
+                chat_summary_md = gr.Markdown("No chat data yet.", elem_classes=["hide-label"])
+                chat_table = gr.Dataframe(
+                    headers=["Created At", "Pet ID", "Route", "Status", "Latency (ms)", "Docs", "Question"],
+                    datatype=["str", "str", "str", "str", "number", "number", "str"],
+                    interactive=False,
+                    elem_classes=["hide-label"],
+                )
+
+        gr.HTML("""
+<script>
+(function () {
+  function moveAdminToFooter() {
+    const shell = document.getElementById('footer-monitor-shell');
+    const footer = document.querySelector('footer');
+    if (!shell || !footer) return;
+    if (shell.dataset.footerMounted === '1') return;
+
+    const target = footer.querySelector('.built-with') || footer.firstElementChild || footer;
+    const sep = document.createElement('span');
+    sep.className = 'footer-admin-sep';
+    sep.textContent = '·';
+
+    shell.dataset.footerMounted = '1';
+    target.appendChild(sep);
+    target.appendChild(shell);
+  }
+
+  window.addEventListener('load', moveAdminToFooter);
+  document.addEventListener('DOMContentLoaded', moveAdminToFooter);
+  const observer = new MutationObserver(moveAdminToFooter);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+})();
+</script>
+""")
 
     # -----------------------------
     # UI EVENT WIRING
