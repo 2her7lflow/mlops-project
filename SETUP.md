@@ -72,7 +72,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
-Copy-Item .env.example .env
+Copy-Item ..\.env.example .env
 $env:DATABASE_URL = "sqlite:///./dev.db"
 $env:CREATE_TABLES = "true"
 $env:DISABLE_RAG = "true"
@@ -87,7 +87,7 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
-cp .env.example .env
+cp ../.env.example .env
 export DATABASE_URL="sqlite:///./dev.db"
 export CREATE_TABLES="true"
 export DISABLE_RAG="true"
@@ -95,6 +95,8 @@ uvicorn main:app --reload --port 8000
 ```
 
 Use `DISABLE_RAG=false` only after the RAG dependencies and key are configured.
+
+The canonical example env file lives at the repository root as `.env.example`.
 
 ## 5. Run frontend locally without Docker
 

@@ -5,10 +5,11 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture(scope="session")
-def client():
-    os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
-    os.environ.setdefault("CREATE_TABLES", "true")
-    os.environ.setdefault("DISABLE_RAG", "true")
+def client(tmp_path_factory: pytest.TempPathFactory):
+    test_db = tmp_path_factory.mktemp("db") / "test.db"
+    os.environ["DATABASE_URL"] = f"sqlite:///{test_db}"
+    os.environ["CREATE_TABLES"] = "true"
+    os.environ["DISABLE_RAG"] = "true"
 
     from app.main import app  # imported after env set
 
