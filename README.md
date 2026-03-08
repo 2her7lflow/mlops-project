@@ -1,77 +1,61 @@
-# Pet Nutrition AI
+# Pet Nutrition AI MLOps Project
 
-Pet Nutrition AI is a full-stack pet care project with:
-
-- a **Gradio frontend** for pet profile management, nutrition Q&A, activity logging, and feedback
-- a **FastAPI backend** with session-based auth, pet CRUD, activity-based meal adjustments, and feedback APIs
-- a **RAG pipeline** over the local knowledge base for nutrition guidance
-- optional **MLflow**, **DVC**, and scheduler support for MLOps workflows
+End-to-end pet nutrition assistant with:
+- **FastAPI backend** for auth, pet profiles, activity logging, nutrition chat, feedback, and chat monitoring
+- **Gradio frontend** for the user interface
+- **RAG pipeline** over the local knowledge base
+- **MLflow + optional scheduler** for experiment tracking and recurring rebuild/evaluation flows
 
 ## Repository layout
 
 ```text
 .
-├── backend/                # FastAPI app, tests, scheduler, scripts
+├── backend/                # FastAPI app, tests, Dockerfile
 ├── frontend/               # Gradio app
-├── knowledge_base/         # raw and processed knowledge sources
+├── knowledge_base/         # raw docs + generated processed artifacts
 ├── .github/workflows/      # GitHub Actions CI
-├── docker-compose.yml      # local development stack
-├── docker-compose.prod.yml # production-style compose stack
-└── Dockerfile.mlflow       # MLflow server image
+├── docker-compose.yml      # local dev stack
+├── docker-compose.prod.yml # production-oriented stack
+├── dvc.yaml                # optional DVC pipeline
+└── SETUP_GUIDE.md          # step-by-step setup instructions
 ```
 
-## Main features
+## What the backend exposes
 
-- user signup, login, logout, and session authentication
-- pet profile CRUD
-- species-specific breed selection in the frontend (`dog` breeds vs `cat` breeds)
-- daily activity logging and nutrition adjustment
-- chat-style nutrition assistant backed by the project knowledge base
-- feedback collection for bugs, UX issues, ideas, and answer quality
+- `GET /health`
+- `POST /api/auth/signup`
+- `POST /api/auth/login`
+- `POST /api/pets`
+- `POST /api/activity/logs`
+- `POST /api/nutrition/chat`
+- `POST /api/feedback`
+- `GET /api/chat/logs`
+- `GET /api/chat/summary`
+- `POST /api/chat/feedback`
 
-## Quick start
+## CI
 
-### Docker Compose
-
-```bash
-docker compose up --build
-```
-
-Services:
-
-- Frontend: `http://localhost:7860`
-- Backend API: `http://localhost:8000`
-- Swagger UI: `http://localhost:8000/docs`
-- MLflow: `http://localhost:5000`
-
-### Local development
-
-See [SETUP.md](SETUP.md) for full local setup instructions.
-
-## CI status
-
-The current GitHub workflow is in `.github/workflows/backend-ci.yml` and checks the backend only:
+GitHub Actions runs the backend checks from `.github/workflows/backend-ci.yml`:
 
 ```bash
+pip install -r backend/requirements.txt
+pip install -r backend/requirements-dev.txt
 ruff check backend
 pytest -q backend/tests
 ```
 
-Notes:
+## Fast start
 
-- the workflow uses **Python 3.11**
-- the frontend is **not** currently covered by GitHub Actions
-- RAG evaluation runs only when `GOOGLE_API_KEY` exists in repository secrets
+For the full local setup, environment variables, and Docker instructions, see [SETUP_GUIDE.md](./SETUP_GUIDE.md).
 
-## Key files to read first
+Quick local backend test:
 
-- `SETUP.md`
-- `backend/README.md`
-- `frontend/README.md`
-- `.github/workflows/backend-ci.yml`
-
-## Current behavior worth noting
-
-- the frontend breed dropdown now switches between **dog breeds** and **cat breeds** based on the selected species
-- breed options are loaded from `knowledge_base/raw/breed_info/*.csv` with built-in fallback lists
-- custom breed values are still allowed from the frontend
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate  # Windows PowerShell: .\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt -r requirements-dev.txt
+cp .env.example .env       # Windows PowerShell: Copy-Item .env.example .env
+pytest -q
+uvicorn main:app --reload --port 8000
+```

@@ -9,10 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .db import init_db
 from .metrics import record
-from .routers import activity, admin, auth, feedback, nutrition, pets, system
-from .routers import chat_logs
+from .routers import activity, admin, auth, chat_logs, feedback, nutrition, pets, system
 from .services.rag_service import warmup_rag
-
 
 logging.basicConfig(
     level=logging.INFO,

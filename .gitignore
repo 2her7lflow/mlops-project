@@ -49,6 +49,7 @@ knowledge_base/processed/
 knowledge_base/**/vectorstore/
 knowledge_base/**/.chroma*/
 knowledge_base/**/chroma*/
+knowledge_base/candidates/
 
 # ------------------------------
 # Node / Frontend
@@ -74,3 +75,20 @@ Thumbs.db
 # Docker (local overrides)
 # ------------------------------
 docker-compose.override.yml
+
+# Additional local tooling / environment
+.venv*/
+.python-version
+.envrc
+.direnv/
+
+# SQLite side files
+*.db-journal
+*.sqlite
+*.sqlite-journal
+
+# Coverage / reports
+coverage.xml
+
+# Frontend / Gradio local state
+.gradio/

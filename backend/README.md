@@ -51,13 +51,15 @@ backend/
 
 ## Database tables
 
-This version keeps only the tables that are currently used by the API:
+This version keeps the tables that are currently used by the API:
 
 - `users`
 - `auth_sessions`
 - `pets`
 - `activity_logs`
 - `feedback`
+- `chat_logs`
+- `chat_feedback`
 
 `nutrition_plans` was removed because the app calculates meal plans on demand from the pet profile and latest activity instead of reading a persisted plan table.
 
@@ -101,6 +103,11 @@ Legacy compatibility:
 ### Feedback
 - `POST /api/feedback`
 - `GET /api/feedback?limit=20`
+
+### Chat monitoring
+- `GET /api/chat/logs`
+- `GET /api/chat/summary`
+- `POST /api/chat/feedback`
 
 ### Admin
 - `POST /admin/setup-rag`
