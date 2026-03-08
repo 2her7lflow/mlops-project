@@ -9,9 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .db import init_db
 from .metrics import record
-from .routers import pets, nutrition, activity, admin, system, auth, feedback
+from .routers import activity, admin, auth, feedback, nutrition, pets, system
 from .services.rag_service import warmup_rag
-
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,6 +28,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Pet Nutrition AI API", version="1.0.0", lifespan=lifespan)
+
+# Ensure demo/test databases have tables even when lifespan hooks are skipped.
+init_db()
 
 # CORS
 app.add_middleware(

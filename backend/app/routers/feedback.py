@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import require_user
 from ..db import get_db
+from ..metrics import record_feedback
 from ..models import Feedback, Pet, User
 from ..schemas import FeedbackCreate, FeedbackResponse
 
@@ -74,6 +75,8 @@ def create_feedback(payload: FeedbackCreate, user: User = Depends(require_user),
     db.add(row)
     db.commit()
     db.refresh(row)
+
+    record_feedback(page=row.page, rating=row.rating)
 
     return FeedbackResponse(
         id=row.id,

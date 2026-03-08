@@ -5,7 +5,6 @@ from typing import Any
 
 from ..nutrition_calculator import NutritionCalculator
 
-
 CALC_HINTS = [
     "portion",
     "portion size",

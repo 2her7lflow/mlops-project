@@ -4,8 +4,8 @@ from datetime import datetime
 
 from fastapi import APIRouter
 
-from ..metrics import snapshot
 from ..db import engine
+from ..metrics import snapshot
 
 router = APIRouter(tags=["system"])
 

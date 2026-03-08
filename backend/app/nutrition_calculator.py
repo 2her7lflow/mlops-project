@@ -1,5 +1,5 @@
-from typing import Dict, Optional
 import math
+from typing import Dict, Optional
 
 
 class NutritionCalculator:

@@ -8,12 +8,13 @@ from sqlalchemy.orm import Session
 
 from ..auth import require_user
 from ..db import get_db
+from ..metrics import record_rag
 from ..models import Pet, User
-from ..schemas import ChatRequest, ChatResponse, CalorieCalculation
-from ..rag_engine import get_rag
 from ..nutrition_calculator import NutritionCalculator
-from ..services.mlflow_tracker import mlflow_run, log_params, log_metrics, now_ms
-from ..services.nutrition_service import is_calculation_question, extract_pet_facts
+from ..rag_engine import get_rag
+from ..schemas import CalorieCalculation, ChatRequest, ChatResponse
+from ..services.mlflow_tracker import log_metrics, log_params, mlflow_run, now_ms
+from ..services.nutrition_service import extract_pet_facts, is_calculation_question
 
 router = APIRouter(prefix="/api/nutrition", tags=["nutrition"])
 
@@ -184,6 +185,7 @@ def nutrition_chat(request: ChatRequest, user: User = Depends(require_user), db:
                         log_params({"route_type": "calculator_missing_input"})
                         log_metrics({"latency_total_ms": latency_ms, "calc_routed": 1.0})
 
+                record_rag(route_type="calculator", latency_ms=latency_ms)
                 return ChatResponse(answer=answer, sources=[])
 
             daily_calories = calc.calculate_der(
@@ -231,6 +233,7 @@ def nutrition_chat(request: ChatRequest, user: User = Depends(require_user), db:
                         }
                     )
 
+            record_rag(route_type="calculator", latency_ms=latency_ms)
             return ChatResponse(answer=answer, sources=[])
 
         rag = get_rag()
@@ -286,6 +289,7 @@ def nutrition_chat(request: ChatRequest, user: User = Depends(require_user), db:
                 }
             )
 
+        record_rag(route_type="rag", latency_ms=latency_ms, meta=meta, sources_count=len(sources))
         return ChatResponse(answer=result.get("answer", ""), sources=sources)
 
     except Exception as e:

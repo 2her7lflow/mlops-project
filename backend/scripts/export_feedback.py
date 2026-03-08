@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path as _Path
+
 sys.path.append(str(_Path(__file__).resolve().parents[1]))
 
 import json
 import os
 from pathlib import Path
+
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
 from app.models import Feedback
+
 
 def _kb_dir() -> Path:
     kb_dir = os.getenv("KNOWLEDGE_BASE_DIR", "").strip()
@@ -30,6 +33,9 @@ def main() -> None:
         rows = db.query(Feedback).order_by(Feedback.created_at.desc()).limit(5000).all()
         with out_path.open("w", encoding="utf-8") as f:
             for r in rows:
+                question = getattr(r, "question", None)
+                corrected_answer = getattr(r, "corrected_answer", None)
+                review_ready = bool(question and corrected_answer and (r.rating == -1 or r.category == "accuracy"))
                 f.write(json.dumps({
                     "id": r.id,
                     "user_email": r.user_email,
@@ -38,9 +44,10 @@ def main() -> None:
                     "category": r.category,
                     "rating": r.rating,
                     "message": r.message,
-                    "question": getattr(r, "question", None),
+                    "question": question,
                     "answer": getattr(r, "answer", None),
-                    "corrected_answer": getattr(r, "corrected_answer", None),
+                    "corrected_answer": corrected_answer,
+                    "review_ready": review_ready,
                     "created_at": r.created_at.isoformat() if r.created_at else None,
                 }, ensure_ascii=False) + "\n")
         print(f"OK exported {len(rows)} feedback rows to {out_path}")

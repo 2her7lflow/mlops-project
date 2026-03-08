@@ -2,15 +2,15 @@
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
     Integer,
     String,
-    Float,
-    Boolean,
-    DateTime,
     Text,
-    Date,
-    ForeignKey,
 )
 from sqlalchemy.orm import declarative_base
 

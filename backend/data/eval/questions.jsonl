@@ -1,3 +1,15 @@
-{"q":"สุนัขโตหนัก 10 กก. กินอาหารเม็ดวันละกี่กรัม?","expect_sources":true}
-{"q":"แมวอายุ 2 ปี กิน wet food ควรแบ่งกี่มื้อ?","expect_sources":true}
-{"q":"ช็อกโกแลตอันตรายกับสุนัขไหม?","expect_sources":true}
+{"id":"tox_01","question":"ช็อกโกแลตอันตรายกับสุนัขไหม?","expected_language":"th","expected_no_context":false,"expected_source_contains":["toxic_foods"]}
+{"id":"tox_02","question":"องุ่นเป็นพิษต่อสุนัขหรือไม่","expected_language":"th","expected_no_context":false,"expected_source_contains":["toxic_foods"]}
+{"id":"tox_03","question":"แมวกินหัวหอมได้ไหม","expected_language":"th","expected_no_context":false,"expected_source_contains":["toxic_foods"]}
+{"id":"diet_01","question":"สุนัขโตหนัก 10 กก. กินอาหารเม็ดวันละกี่กรัม?","expected_language":"th","expected_no_context":false}
+{"id":"diet_02","question":"แมวอายุ 2 ปี กินอาหารเปียกควรแบ่งกี่มื้อ","expected_language":"th","expected_no_context":false}
+{"id":"diet_03","question":"ขนมควรให้สุนัขมากแค่ไหนต่อวัน","expected_language":"th","expected_no_context":false,"expected_source_contains":["WSAVA_GuidetoTreats_Dogs"]}
+{"id":"diet_04","question":"ขนมควรให้แมวมากแค่ไหนต่อวัน","expected_language":"th","expected_no_context":false,"expected_source_contains":["WSAVA_GuidetoTreats_Cats"]}
+{"id":"diet_05","question":"อาหารดิบเหมาะกับสุนัขหรือไม่","expected_language":"th","expected_no_context":false,"expected_source_contains":["Raw-Meat-Based-Diets-for-Pets"]}
+{"id":"diet_06","question":"แนวทางประเมินโภชนาการสำหรับสุนัขและแมวมีอะไรบ้าง","expected_language":"th","expected_no_context":false,"expected_source_contains":["AAHA Nutritional Assessment Guidelines"]}
+{"id":"diet_07","question":"มาตรฐานสารอาหารขั้นต่ำของอาหารสัตว์เลี้ยงอ้างอิงจากอะไร","expected_language":"th","expected_no_context":false,"expected_source_contains":["AAFCO_Nutrient_Profiles"]}
+{"id":"diet_08","question":"fediaf guidelines ใช้ดูเรื่องอะไร","expected_language":"th","expected_no_context":false,"expected_source_contains":["fediaf_guidelines"]}
+{"id":"breed_01","question":"Pug เป็นสุนัขขนาดเล็กหรือไม่","expected_language":"th","expected_no_context":false,"expected_source_contains":["dog_breeds.csv"]}
+{"id":"breed_02","question":"Persian เป็นแมวที่ต้องดูแลเรื่องขนมากไหม","expected_language":"th","expected_no_context":false,"expected_source_contains":["cat_breeds.csv"]}
+{"id":"breed_03","question":"Golden Retriever มีลักษณะเด่นอะไร","expected_language":"th","expected_no_context":false,"expected_source_contains":["dog_breeds.csv"]}
+{"id":"fallback_01","question":"สุนัขกินทุเรียนได้ไหม","expected_language":"th"}
