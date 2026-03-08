@@ -4,6 +4,8 @@
 .env
 .env.*
 *.env
+!.env.example
+.ps1
 
 # ------------------------------
 # Python
@@ -32,6 +34,12 @@ htmlcov/
 *.log
 
 # ------------------------------
+# DVC local cache / locks
+# ------------------------------
+.dvc/cache/
+.dvc/tmp/
+
+# ------------------------------
 # MLflow artifacts (generated)
 # ------------------------------
 mlruns/
@@ -55,9 +63,19 @@ test.db
 # RAG / Knowledge base artifacts (generated)
 # ------------------------------
 knowledge_base/processed/
+knowledge_base/candidates/
+knowledge_base/feedback/*.jsonl
+!knowledge_base/feedback/.gitignore
 knowledge_base/**/vectorstore/
+knowledge_base/**/page_vectorstore/
 knowledge_base/**/.chroma*/
 knowledge_base/**/chroma*/
+
+# ------------------------------
+# Local packaged archives
+# ------------------------------
+backend.zip
+frontend.zip
 
 # ------------------------------
 # Node / Frontend

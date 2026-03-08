@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -174,6 +176,141 @@ def _mlflow_log_eval(metrics: dict[str, Any], artifact_paths: list[str], tags: d
         return
 
 
+def _last_json_line(text: str) -> dict[str, Any]:
+    for line in reversed((text or '').splitlines()):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            value = json.loads(line)
+            if isinstance(value, dict):
+                return value
+        except Exception:
+            continue
+    raise ValueError('Could not parse JSON object from subprocess output.')
+
+
+def _evaluate_single_row(row: dict[str, Any]) -> dict[str, Any]:
+    from rag_engine import get_rag
+
+    q = row.get('q') or row.get('question')
+    if not q:
+        raise ValueError('Eval row is missing q/question.')
+
+    rag = get_rag()
+
+    t0 = time.perf_counter()
+    out = rag.ask(str(q), pet_context=None)
+    ms = (time.perf_counter() - t0) * 1000.0
+
+    answer = str(out.get('answer') or '')
+    sources = out.get('sources') or []
+    meta = out.get('_meta') or {}
+
+    hit = bool(sources)
+    is_no_context = bool(
+        meta.get('guardrail_no_context')
+        or meta.get('guardrail_no_relevant_kb')
+        or meta.get('guardrail_not_indexed')
+    )
+
+    source_match = _source_match(row.get('expected_source_contains'), sources)
+    expected_no_context = _expected_bool(row, 'expected_no_context')
+
+    expected_language = row.get('expected_language')
+    answer_language = _detect_language(answer)
+
+    reference_answer = _get_reference_answer(row)
+    exact_match = None
+    token_f1 = None
+    if reference_answer:
+        exact_match = _normalize_text(reference_answer) == _normalize_text(answer)
+        token_f1 = _token_f1(reference_answer, answer)
+
+    return {
+        'answer': answer,
+        'sources': [
+            {
+                'source': s.get('source', 'unknown'),
+                'page': s.get('page'),
+                'row': s.get('row'),
+                'snippet': s.get('snippet'),
+            }
+            for s in sources
+        ],
+        'latency_ms': round(ms, 1),
+        'hit': hit,
+        'source_match': source_match,
+        'expected_no_context': expected_no_context,
+        'actual_no_context': is_no_context,
+        'expected_language': expected_language,
+        'answer_language': answer_language,
+        'exact_match': exact_match,
+        'token_f1': round(token_f1, 4) if isinstance(token_f1, float) else None,
+        'runtime_error': False,
+        'meta': meta,
+    }
+
+
+def _run_single_case_subprocess(row: dict[str, Any]) -> dict[str, Any]:
+    env = os.environ.copy()
+    env['RAG_EVAL_CHILD'] = '1'
+    env.pop('MLFLOW_PARENT_RUN_ID', None)
+
+    with tempfile.NamedTemporaryFile('w', delete=False, suffix='.json', encoding='utf-8') as f:
+        json.dump(row, f, ensure_ascii=False)
+        temp_path = f.name
+
+    try:
+        cp = subprocess.run(
+            [sys.executable, __file__, '--single-case', temp_path],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if cp.returncode != 0:
+            stderr = (cp.stderr or '').strip()
+            stdout = (cp.stdout or '').strip()
+            return {
+                'answer': '',
+                'sources': [],
+                'latency_ms': 0.0,
+                'hit': False,
+                'source_match': False if row.get('expected_source_contains') is not None else None,
+                'expected_no_context': _expected_bool(row, 'expected_no_context'),
+                'actual_no_context': None,
+                'expected_language': row.get('expected_language'),
+                'answer_language': 'unknown',
+                'exact_match': False if _get_reference_answer(row) else None,
+                'token_f1': 0.0 if _get_reference_answer(row) else None,
+                'runtime_error': True,
+                'runtime_error_code': cp.returncode,
+                'runtime_error_message': stderr or stdout or 'child process failed',
+                'meta': {},
+            }
+        return _last_json_line(cp.stdout)
+    finally:
+        try:
+            Path(temp_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+def _single_case_main(path_str: str) -> None:
+    row = json.loads(Path(path_str).read_text(encoding='utf-8'))
+    result = _evaluate_single_row(row)
+    print(json.dumps(result, ensure_ascii=False))
+
+
+def _use_isolated_eval() -> bool:
+    value = (os.getenv('RAG_EVAL_ISOLATE_CASES') or '').strip().lower()
+    if value in {'1', 'true', 'yes'}:
+        return True
+    if value in {'0', 'false', 'no'}:
+        return False
+    return os.name == 'nt'
+
+
 def main() -> None:
     kb_dir = (os.getenv("KNOWLEDGE_BASE_DIR") or "").strip()
     if not kb_dir:
@@ -187,10 +324,6 @@ def main() -> None:
         raise SystemExit(
             f"Missing eval set at {eval_dir}. Create questions.jsonl (and optionally generated_from_feedback.jsonl)."
         )
-
-    from rag_engine import get_rag
-
-    rag = get_rag()
 
     total = 0
     retrieval_hit = 0
@@ -207,63 +340,64 @@ def main() -> None:
     exact_checks = 0
     exact_matches = 0
     token_f1_scores: list[float] = []
+    runtime_errors = 0
     per_case: list[dict[str, Any]] = []
+
+    isolate_cases = _use_isolated_eval()
 
     for idx, row in enumerate(rows, start=1):
         q = row.get("q") or row.get("question")
         if not q:
             continue
         total += 1
-        t0 = time.perf_counter()
-        out = rag.ask(str(q), pet_context=None)
-        ms = (time.perf_counter() - t0) * 1000.0
-        lat_ms.append(ms)
 
-        answer = str(out.get("answer") or "")
-        sources = out.get("sources") or []
-        meta = out.get("_meta") or {}
+        if isolate_cases:
+            case_res = _run_single_case_subprocess(row)
+        else:
+            case_res = _evaluate_single_row(row)
 
-        hit = bool(sources)
+        answer = str(case_res.get("answer") or "")
+        sources = case_res.get("sources") or []
+        hit = bool(case_res.get("hit"))
+        source_match = case_res.get("source_match")
+        expected_no_context = case_res.get("expected_no_context")
+        is_no_context = bool(case_res.get("actual_no_context"))
+        expected_language = case_res.get("expected_language")
+        answer_language = str(case_res.get("answer_language") or "unknown")
+        exact_match = case_res.get("exact_match")
+        token_f1 = case_res.get("token_f1")
+        latency_ms = float(case_res.get("latency_ms") or 0.0)
+        runtime_error = bool(case_res.get("runtime_error"))
+
+        lat_ms.append(latency_ms)
         if hit:
             retrieval_hit += 1
-
-        is_no_context = bool(
-            meta.get("guardrail_no_context")
-            or meta.get("guardrail_no_relevant_kb")
-            or meta.get("guardrail_not_indexed")
-        )
         if is_no_context:
             no_context += 1
+        if runtime_error:
+            runtime_errors += 1
 
-        source_match = _source_match(row.get("expected_source_contains"), sources)
         if source_match is not None:
             source_checks += 1
             if source_match:
                 source_matches += 1
 
-        expected_no_context = _expected_bool(row, "expected_no_context")
         if expected_no_context is not None:
             no_context_checks += 1
             if expected_no_context == is_no_context:
                 no_context_correct += 1
 
-        expected_language = row.get("expected_language")
-        answer_language = _detect_language(answer)
         if isinstance(expected_language, str) and expected_language.strip():
             language_checks += 1
             if expected_language.strip().lower() == answer_language:
                 language_matches += 1
 
-        reference_answer = _get_reference_answer(row)
-        exact_match = None
-        token_f1 = None
-        if reference_answer:
+        if _get_reference_answer(row):
             exact_checks += 1
-            exact_match = _normalize_text(reference_answer) == _normalize_text(answer)
             if exact_match:
                 exact_matches += 1
-            token_f1 = _token_f1(reference_answer, answer)
-            token_f1_scores.append(token_f1)
+            if isinstance(token_f1, (int, float)):
+                token_f1_scores.append(float(token_f1))
 
         answer_lengths.append(len(answer))
         per_case.append(
@@ -272,7 +406,7 @@ def main() -> None:
                 "eval_file": row.get("_eval_file"),
                 "question": q,
                 "answer": answer,
-                "latency_ms": round(ms, 1),
+                "latency_ms": round(latency_ms, 1),
                 "hit": hit,
                 "source_match": source_match,
                 "expected_no_context": expected_no_context,
@@ -280,11 +414,15 @@ def main() -> None:
                 "expected_language": expected_language,
                 "answer_language": answer_language,
                 "exact_match": exact_match,
-                "token_f1": round(token_f1, 4) if isinstance(token_f1, float) else None,
+                "token_f1": round(float(token_f1), 4) if isinstance(token_f1, (int, float)) else None,
+                "runtime_error": runtime_error,
+                "runtime_error_code": case_res.get("runtime_error_code"),
+                "runtime_error_message": case_res.get("runtime_error_message"),
                 "sources": [
                     {
                         "source": s.get("source", "unknown"),
                         "page": s.get("page"),
+                        "row": s.get("row"),
                     }
                     for s in sources
                 ],
@@ -307,6 +445,9 @@ def main() -> None:
         "cases_with_no_context_expectation": no_context_checks,
         "cases_with_language_expectation": language_checks,
         "cases_with_reference_answer": exact_checks,
+        "runtime_error_count": runtime_errors,
+        "runtime_error_rate": round(runtime_errors / total, 3) if total else 0.0,
+        "isolated_case_eval": 1.0 if isolate_cases else 0.0,
         "built_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
 
@@ -333,4 +474,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) >= 3 and sys.argv[1] == "--single-case":
+        _single_case_main(sys.argv[2])
+    else:
+        main()
