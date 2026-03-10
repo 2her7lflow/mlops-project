@@ -28,9 +28,6 @@ load_dotenv(override=False)
 # Disable anonymized telemetry
 os.environ["ANONYMIZED_TELEMETRY"] = "false"
 
-# -----------------------------
-# Prompt Templates (Advanced Prompt Engineering)
-# -----------------------------
 
 # 1) Main RAG Prompt (V3)
 RAG_PROMPT_TEMPLATE_V3 = """คุณคือผู้ช่วย AI สัตวแพทย์ที่เชี่ยวชาญและเป็นมิตร
