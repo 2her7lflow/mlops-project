@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import logging
-import time
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+
+import time
+import logging
+from contextlib import asynccontextmanager
 
 from .db import init_db
 from .metrics import record
